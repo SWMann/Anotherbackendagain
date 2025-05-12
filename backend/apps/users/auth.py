@@ -33,7 +33,7 @@ def discord_auth(request):
     }
 
     response = requests.post('https://discord.com/api/oauth2/token', data=data, headers=headers)
-
+    print(response)
     if response.status_code != 200:
         return Response({'error': 'Failed to retrieve access token from Discord'}, status=status.HTTP_400_BAD_REQUEST)
 
