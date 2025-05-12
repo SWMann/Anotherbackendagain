@@ -7,7 +7,7 @@ django-cors-headers==3.14.0
 django-filter==23.1 
  
 # JWT Authentication 
-djangorestframework-simplejwt==5.2.2 
+djangorestframework-simplejwt
  
 # PostgreSQL 
 psycopg2-binary==2.9.5 
