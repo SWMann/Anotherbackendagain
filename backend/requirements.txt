@@ -13,7 +13,7 @@ djangorestframework-simplejwt
 psycopg2-binary
  
 # Utilities 
-Pillowg
+Pillow
 django-storages
 boto3
 python-dotenv
