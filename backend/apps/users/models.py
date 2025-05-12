@@ -43,12 +43,16 @@ class User(AbstractBaseUser, PermissionsMixin, BaseModel):
     is_staff = models.BooleanField(default=False)
     is_admin = models.BooleanField(default=False)
     service_number = models.CharField(max_length=50, unique=True, blank=True, null=True)
-
+    current_rank = models.ForeignKey('units.Rank', on_delete=models.SET_NULL, related_name='users', null=True,
+                                     blank=True)
+    primary_unit = models.ForeignKey('units.Unit', on_delete=models.SET_NULL, related_name='primary_members', null=True,
+                                     blank=True)
+    branch = models.ForeignKey('units.Branch', on_delete=models.SET_NULL, related_name='members', null=True, blank=True)
     background_image_url = models.URLField(blank=True, null=True)
     timezone = models.CharField(max_length=50, blank=True, null=True)
     discord_notifications = models.BooleanField(default=True)
     email_notifications = models.BooleanField(default=True)
-
+    commission_stage = models.ForeignKey('onboarding.CommissionStage', on_delete=models.SET_NULL, null=True, blank=True)
     onboarding_status = models.CharField(
         max_length=50,
         choices=[
