@@ -6,42 +6,8 @@
   <component name="ChangeListManager">
     <list default="true" id="a12fe88c-768d-46b2-ba7d-8358f406cde6" name="Changes" comment="First Commit">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/apps/events/models.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/apps/events/models.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/apps/events/serializers.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/apps/events/serializers.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/apps/events/urls.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/apps/events/urls.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/apps/events/views.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/apps/events/views.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/apps/forums/models.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/apps/forums/models.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/apps/forums/serializers.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/apps/forums/serializers.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/apps/forums/urls.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/apps/forums/urls.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/apps/forums/views.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/apps/forums/views.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/apps/onboarding/models.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/apps/onboarding/models.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/apps/onboarding/serializers.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/apps/onboarding/serializers.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/apps/onboarding/urls.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/apps/onboarding/urls.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/apps/onboarding/views.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/apps/onboarding/views.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/backend/apps/operations/models.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/apps/operations/models.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/apps/operations/serializers.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/apps/operations/serializers.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/apps/operations/urls.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/apps/operations/urls.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/backend/apps/operations/views.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/apps/operations/views.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/apps/ships/models.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/apps/ships/models.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/apps/ships/serializers.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/apps/ships/serializers.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/apps/ships/urls.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/apps/ships/urls.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/apps/ships/views.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/apps/ships/views.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/apps/standards/models.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/apps/standards/models.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/apps/standards/serializers.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/apps/standards/serializers.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/apps/standards/urls.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/apps/standards/urls.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/apps/standards/views.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/apps/standards/views.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/apps/training/models.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/apps/training/models.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/apps/training/serializers.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/apps/training/serializers.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/apps/training/urls.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/apps/training/urls.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/apps/training/views.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/apps/training/views.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/apps/units/models.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/apps/units/models.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/apps/units/serializers.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/apps/units/serializers.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/apps/units/urls.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/apps/units/urls.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/apps/units/urls_branches.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/apps/units/urls_branches.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/apps/units/urls_positions.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/apps/units/urls_positions.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/apps/units/urls_ranks.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/apps/units/urls_ranks.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/apps/units/views.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/apps/units/views.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/apps/users/models.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/apps/users/models.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -91,7 +57,7 @@
       <option name="presentableId" value="Default" />
       <updated>1747052346480</updated>
       <workItem from="1747052347552" duration="2351000" />
-      <workItem from="1747054762239" duration="9432000" />
+      <workItem from="1747054762239" duration="10196000" />
     </task>
     <task id="LOCAL-00001" summary="First Commit">
       <option name="closed" value="true" />
@@ -229,7 +195,15 @@
       <option name="project" value="LOCAL" />
       <updated>1747063115790</updated>
     </task>
-    <option name="localTasksCounter" value="18" />
+    <task id="LOCAL-00018" summary="First Commit">
+      <option name="closed" value="true" />
+      <created>1747064346313</created>
+      <option name="number" value="00018" />
+      <option name="presentableId" value="LOCAL-00018" />
+      <option name="project" value="LOCAL" />
+      <updated>1747064346313</updated>
+    </task>
+    <option name="localTasksCounter" value="19" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">

@@ -4,8 +4,7 @@ from apps.core.models import BaseModel
 
 class OperationOrder(BaseModel):
     operation_name = models.CharField(max_length=200)
-    event = models.ForeignKey('events.Event', on_delete=models.CASCADE, related_name='operation_orders', null=True,
-                              blank=True)
+
     situation = models.TextField(blank=True, null=True)
     mission = models.TextField(blank=True, null=True)
     execution = models.TextField(blank=True, null=True)
