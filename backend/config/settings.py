@@ -169,6 +169,7 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # REST Framework settings
 REST_FRAMEWORK = {
+    'DEFAULT_SCHEMA_URL': '/anotherbackendagain-backend2/api/',
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',
         'rest_framework.authentication.SessionAuthentication',
@@ -183,6 +184,7 @@ REST_FRAMEWORK = {
         'rest_framework.filters.SearchFilter',
         'rest_framework.filters.OrderingFilter',
     ),
+
 }
 FORCE_SCRIPT_NAME = '/anotherbackendagain-backend2'
 
@@ -211,6 +213,9 @@ AUTHENTICATION_BACKENDS = (
     'social_core.backends.discord.DiscordOAuth2',
     'django.contrib.auth.backends.ModelBackend',
 )
+WHITENOISE_STATIC_PREFIX = '/anotherbackendagain-backend2/static/'
+
+
 
 SOCIAL_AUTH_PIPELINE = (
     'social_core.pipeline.social_auth.social_details',
