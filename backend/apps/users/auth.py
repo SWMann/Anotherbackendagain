@@ -24,7 +24,7 @@ def discord_auth(request):
         'client_secret': settings.SOCIAL_AUTH_DISCORD_SECRET,
         'grant_type': 'authorization_code',
         'code': code,
-        'redirect_uri': request.data.get('redirect_uri', 'http://localhost:3000/auth/callback'),
+        'redirect_uri': settings.SOCIAL_AUTH_DISCORD_REDIRECT_URI,
         'scope': 'identify email',
     }
     print(data)

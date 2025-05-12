@@ -211,6 +211,7 @@ SIMPLE_JWT = {
 SOCIAL_AUTH_DISCORD_KEY = os.environ.get('DISCORD_CLIENT_ID', '')
 SOCIAL_AUTH_DISCORD_SECRET = os.environ.get('DISCORD_CLIENT_SECRET', '')
 SOCIAL_AUTH_DISCORD_SCOPE = ['identify', 'email']
+SOCIAL_AUTH_DISCORD_REDIRECT_URI = os.environ.get('SOCIAL_AUTH_DISCORD_REDIRECT_URI', '')
 
 AUTHENTICATION_BACKENDS = (
     'social_core.backends.discord.DiscordOAuth2',
