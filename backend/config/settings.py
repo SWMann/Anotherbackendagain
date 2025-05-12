@@ -234,7 +234,7 @@ SOCIAL_AUTH_PIPELINE = (
 
 # CORS settings
 CORS_ALLOW_ALL_ORIGINS = DEBUG
-CORS_ALLOWED_ORIGINS = os.environ.get('CORS_ALLOWED_ORIGINS', 'http://localhost:3000').split(',')
+CORS_ALLOWED_ORIGINS = os.environ.get('CORS_ALLOWED_ORIGINS', "http://localhost:3000, https://discord.com").split(',')
 
 # Digital Ocean Spaces (S3-compatible) settings
 USE_SPACES = os.environ.get('USE_SPACES', 'False').lower() == 'true'
