@@ -86,7 +86,7 @@ if not DEBUG:
     X_FRAME_OPTIONS = 'DENY'
 
 ROOT_URLCONF = 'config.urls'
-
+SESSION_ENGINE = 'django.contrib.sessions.backends.db'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
