@@ -52,7 +52,7 @@ class User(AbstractBaseUser, PermissionsMixin, BaseModel):
     timezone = models.CharField(max_length=50, blank=True, null=True)
     discord_notifications = models.BooleanField(default=True)
     email_notifications = models.BooleanField(default=True)
-    commission_stage = models.ForeignKey('onboarding.CommissionStage', on_delete=models.SET_NULL, null=True, blank=True)
+    commission_stage = models.ForeignKey('onboarding.CommissionStage', on_delete=models.SET_NULL, null=True, blank=True, related_name='user_commissioning')
     onboarding_status = models.CharField(
         max_length=50,
         choices=[
@@ -66,10 +66,10 @@ class User(AbstractBaseUser, PermissionsMixin, BaseModel):
         default='Applied',
         blank=True,
         null=True
+
     )
     recruit_status = models.BooleanField(default=True)
     training_completion_date = models.DateTimeField(blank=True, null=True)
-    mentor = models.ForeignKey('self', on_delete=models.SET_NULL, related_name='mentees', null=True, blank=True)
     application_date = models.DateTimeField(blank=True, null=True)
     bit_completion_date = models.DateTimeField(blank=True, null=True)
     branch_application_date = models.DateTimeField(blank=True, null=True)

@@ -81,7 +81,7 @@ class Position(BaseModel):
 
 
 class UserPosition(BaseModel):
-    user = models.ForeignKey('users.User', on_delete=models.CASCADE)
+    user = models.ForeignKey('users.User', on_delete=models.CASCADE, related_name='user_positions')
     position = models.ForeignKey(Position, on_delete=models.CASCADE)
     unit = models.ForeignKey(Unit, on_delete=models.CASCADE)
     assignment_date = models.DateTimeField(auto_now_add=True)

@@ -5,13 +5,35 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="a12fe88c-768d-46b2-ba7d-8358f406cde6" name="Changes" comment="First Commit">
+      <change afterPath="$PROJECT_DIR$/backend/__init__.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/apps/authentication/__init__.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/apps/authentication/admin.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/apps/authentication/apps.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/apps/authentication/models.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/apps/authentication/pipeline.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/apps/authentication/serializers.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/apps/authentication/tests.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/apps/authentication/urls.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/apps/authentication/views.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/backend/apps/units/models.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/apps/units/models.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/apps/users/models.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/apps/users/models.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/apps/users/urls_users.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/apps/users/urls_users.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/apps/users/views.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/apps/users/views.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/config/settings.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/config/settings.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/config/urls.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/config/urls.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
     <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="FileTemplateManagerImpl">
+    <option name="RECENT_TEMPLATES">
+      <list>
+        <option value="Python Script" />
+      </list>
+    </option>
   </component>
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
@@ -39,6 +61,11 @@
     "vue.rearranger.settings.migration": "true"
   }
 }]]></component>
+  <component name="RecentsManager">
+    <key name="MoveFile.RECENT_KEYS">
+      <recent name="C:\Users\schae\PycharmProjects\Test\DjangoRestAPIWebstie\backend\apps\" />
+    </key>
+  </component>
   <component name="SharedIndexes">
     <attachedChunks>
       <set>
@@ -56,7 +83,7 @@
       <option name="presentableId" value="Default" />
       <updated>1747052346480</updated>
       <workItem from="1747052347552" duration="2351000" />
-      <workItem from="1747054762239" duration="10544000" />
+      <workItem from="1747054762239" duration="14479000" />
     </task>
     <task id="LOCAL-00001" summary="First Commit">
       <option name="closed" value="true" />
@@ -210,7 +237,15 @@
       <option name="project" value="LOCAL" />
       <updated>1747065117430</updated>
     </task>
-    <option name="localTasksCounter" value="20" />
+    <task id="LOCAL-00020" summary="First Commit">
+      <option name="closed" value="true" />
+      <created>1747065578330</created>
+      <option name="number" value="00020" />
+      <option name="presentableId" value="LOCAL-00020" />
+      <option name="project" value="LOCAL" />
+      <updated>1747065578330</updated>
+    </task>
+    <option name="localTasksCounter" value="21" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">

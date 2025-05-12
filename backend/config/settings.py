@@ -20,7 +20,7 @@ if not SECRET_KEY and 'RENDER' not in os.environ and 'DIGITALOCEAN' not in os.en
 DEBUG = os.environ.get('DEBUG', 'False').lower() == 'true'
 
 # Get the ALLOWED_HOSTS from the environment variable
-ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
+ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1:8000').split(',')
 
 # Add the Digital Ocean app's domain automatically
 DO_APP_URL = os.environ.get('APP_URL')
@@ -84,6 +84,9 @@ if not DEBUG:
     SECURE_BROWSER_XSS_FILTER = True
     SECURE_CONTENT_TYPE_NOSNIFF = True
     X_FRAME_OPTIONS = 'DENY'
+
+
+SECURE_SSL_REDIRECT = False
 
 ROOT_URLCONF = 'config.urls'
 SESSION_ENGINE = 'django.contrib.sessions.backends.db'
@@ -211,7 +214,6 @@ SOCIAL_AUTH_DISCORD_SCOPE = ['identify', 'email']
 
 AUTHENTICATION_BACKENDS = (
     'social_core.backends.discord.DiscordOAuth2',
-    'django.contrib.auth.backends.ModelBackend',
 )
 WHITENOISE_STATIC_PREFIX = '/anotherbackendagain-backend2/static/'
 

@@ -19,8 +19,8 @@ urlpatterns = [
     path('api/applications/', include('apps.onboarding.urls')), 
     path('api/ranks/', include('apps.units.urls_ranks')), 
     path('api/branches/', include('apps.units.urls_branches')), 
-    path('api/positions/', include('apps.units.urls_positions')), 
-] 
+    path('api/positions/', include('apps.units.urls_positions')),
+]
  
 if settings.DEBUG: 
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT) 
