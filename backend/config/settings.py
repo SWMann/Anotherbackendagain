@@ -184,6 +184,7 @@ REST_FRAMEWORK = {
         'rest_framework.filters.OrderingFilter',
     ),
 }
+FORCE_SCRIPT_NAME = '/anotherbackendagain-backend2'
 
 # JWT settings
 SIMPLE_JWT = {
