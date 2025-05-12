@@ -52,8 +52,7 @@ class Unit(BaseModel):
                                            related_name='commanded_unit')
     is_active = models.BooleanField(default=True)
     location = models.CharField(max_length=100, blank=True, null=True)
-    headquarters_ship = models.ForeignKey('ships.Ship', on_delete=models.SET_NULL, null=True, blank=True,
-                                          related_name='headquartered_units')
+
 
     def __str__(self):
         return self.name
