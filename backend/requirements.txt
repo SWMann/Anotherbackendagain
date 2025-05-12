@@ -1,0 +1,25 @@
+# Django & REST framework 
+django==4.2.0 
+djangorestframework==3.14.0 
+djoser==2.1.0 
+social-auth-app-django==5.0.0 
+django-cors-headers==3.14.0 
+django-filter==23.1 
+ 
+# JWT Authentication 
+djangorestframework-simplejwt==5.2.2 
+ 
+# PostgreSQL 
+psycopg2-binary==2.9.5 
+ 
+# Utilities 
+Pillow==9.5.0  # For image processing 
+django-storages==1.13.2  # For cloud storage 
+boto3==1.26.115  # For AWS integration 
+python-dotenv==1.0.0  # For environment variables 
+whitenoise==6.4.0  # For static files 
+ dj-database-url==0.5.0
+boto3==1.26.115
+django-storages==1.13.2
+# For production 
+gunicorn==20.1.0 
