@@ -27,7 +27,7 @@ def discord_auth(request):
         'redirect_uri': request.data.get('redirect_uri', 'http://localhost:3000/auth/callback'),
         'scope': 'identify email',
     }
-
+    print(data)
     headers = {
         'Content-Type': 'application/x-www-form-urlencoded'
     }
