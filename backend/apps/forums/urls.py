@@ -1,0 +1,3 @@
+urlpatterns = [
+    # Core URL patterns
+]
