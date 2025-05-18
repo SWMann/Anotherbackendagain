@@ -16,7 +16,7 @@ class UserSerializer(serializers.ModelSerializer):
             'current_rank', 'primary_unit', 'branch', 'background_image_url',
             'timezone', 'discord_notifications', 'email_notifications',
             'commission_stage', 'onboarding_status', 'recruit_status',
-            'training_completion_date', 'mentor', 'application_date',
+            'training_completion_date', 'application_date',
             'bit_completion_date', 'branch_application_date',
             'branch_induction_date', 'unit_assignment_date',
             'officer_candidate', 'warrant_officer_candidate'
