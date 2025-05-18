@@ -36,6 +36,21 @@ class ProfileSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'service_number', 'current_rank', 'primary_unit', 'branch', 'commission_stage',
                             'recruit_status']
 
+class UserSensitiveFieldsSerializer(serializers.ModelSerializer):
+    """
+    Serializer for updating sensitive user fields that require admin permissions
+    """
+    class Meta:
+        model = User
+        fields = [
+            'current_rank',
+            'primary_unit',
+            'branch',
+            'commission_stage',
+            'recruit_status',
+            'officer_candidate',
+            'warrant_officer_candidate'
+        ]
 
 class DiscordTokenObtainPairSerializer(TokenObtainPairSerializer):
     @classmethod

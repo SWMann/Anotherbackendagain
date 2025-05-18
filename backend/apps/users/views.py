@@ -4,7 +4,8 @@ from rest_framework.decorators import action
 from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework.views import APIView
 from django.contrib.auth import get_user_model
-from .serializers import UserSerializer, ProfileSerializer, DiscordTokenObtainPairSerializer, UserProfileSerializer
+from .serializers import UserSerializer, ProfileSerializer, DiscordTokenObtainPairSerializer, UserProfileSerializer, \
+    UserSensitiveFieldsSerializer
 from django.shortcuts import get_object_or_404
 
 User = get_user_model()
@@ -102,3 +103,21 @@ class UserDetailView(generics.RetrieveAPIView):
     queryset = User.objects.all()
     serializer_class = UserSerializer
     permission_classes = [permissions.IsAuthenticated]
+
+
+class UserSensitiveFieldsView(generics.UpdateAPIView):
+    """
+    Update sensitive user fields (admin only)
+    """
+    queryset = User.objects.all()
+    serializer_class = UserSensitiveFieldsSerializer
+    permission_classes = [permissions.IsAuthenticated, IsAdminOrReadOnly]
+
+    def update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+
+        # Return the full user object with updated fields
+        return Response(UserSerializer(instance).data)
