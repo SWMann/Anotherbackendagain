@@ -112,6 +112,7 @@ class UserSensitiveFieldsView(generics.UpdateAPIView):
     queryset = User.objects.all()
     serializer_class = UserSensitiveFieldsSerializer
     permission_classes = [permissions.IsAuthenticated, IsAdminOrReadOnly]
+    http_method_names = ['put']  # Only allow PUT method
 
     def update(self, request, *args, **kwargs):
         instance = self.get_object()
