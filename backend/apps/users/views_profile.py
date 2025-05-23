@@ -3,7 +3,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.shortcuts import get_object_or_404
 from django.contrib.auth import get_user_model
-from .serializers import UserSerializer, UserProfileSerializer
+from .serializers import UserSerializer, UserProfileDetailSerializer
 from apps.units.models import UserPosition
 from apps.training.models import UserCertificate
 from apps.events.models import EventAttendance, Event
@@ -14,6 +14,8 @@ from apps.events.serializers import EventAttendanceSerializer
 from apps.ships.serializers import ShipListSerializer
 from django.utils import timezone
 from django.db.models import Q
+
+from .serializers_rest import UserProfileSerializer
 
 User = get_user_model()
 
@@ -32,7 +34,7 @@ class UserProfileDetailView(APIView):
             user = get_object_or_404(User, pk=pk)
 
         # Get user data with expanded relations
-        user_data = UserProfileSerializer(user).data
+        user_data = UserProfileDetailSerializer(user).data
 
         # Get user positions with full details
         positions = UserPosition.objects.filter(user=user).select_related(
