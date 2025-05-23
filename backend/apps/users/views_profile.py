@@ -15,7 +15,7 @@ from apps.ships.serializers import ShipListSerializer
 from django.utils import timezone
 from django.db.models import Q
 
-from .serializers_rest import UserProfileSerializer
+from .serializers import UserProfileSerializer
 
 User = get_user_model()
 
