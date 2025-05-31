@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Branch, Rank, Unit, Position, UserPosition
+from .models import Branch, Rank, Unit, Position, UserPosition, UnitHierarchyView, UnitHierarchyNode
 from django.contrib.auth import get_user_model
 
 User = get_user_model()
