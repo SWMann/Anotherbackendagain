@@ -14,7 +14,7 @@ from apps.users.views import IsAdminOrReadOnly
 class UnitHierarchyViewViewSet(viewsets.ModelViewSet):
     queryset = UnitHierarchyView.objects.all()
     serializer_class = UnitHierarchyViewSerializer
-    permission_classes = [IsAdminOrReadOnly]
+
 
     def perform_create(self, serializer):
         serializer.save(created_by=self.request.user)
