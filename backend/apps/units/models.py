@@ -95,3 +95,74 @@ class UserPosition(BaseModel):
 
     def __str__(self):
         return f"{self.user.username} - {self.position.title} ({self.unit.abbreviation})"
+
+class UnitHierarchyView(BaseModel):
+    """Stores different hierarchy view configurations"""
+    name = models.CharField(max_length=200)
+    description = models.TextField(blank=True, null=True)
+    view_type = models.CharField(
+    choices=[
+            ('full', 'Full Organization'),
+            ('branch', 'Branch Specific'),
+            ('custom', 'Custom View'),
+            ('operational', 'Operational Structure'),
+            ('administrative', 'Administrative Structure')
+        ],
+        default='full'
+    )
+
+    # React Flow layout configuration
+    layout_config = models.JSONField(default=dict, blank=True)
+
+    # Node positions and styling
+    node_positions = models.JSONField(default=dict, blank=True)
+    node_styles = models.JSONField(default=dict, blank=True)
+
+    # Filter configuration
+    filter_config = models.JSONField(default=dict, blank=True)
+
+    # Units included in this view (null means all units)
+    included_units = models.ManyToManyField('Unit', blank=True, related_name='hierarchy_views')
+
+    # View settings
+    is_default = models.BooleanField(default=False)
+    is_public = models.BooleanField(default=True)
+    show_vacant_positions = models.BooleanField(default=True)
+    show_personnel_count = models.BooleanField(default=True)
+
+    created_by = models.ForeignKey('users.User', on_delete=models.SET_NULL, null=True,
+                                   related_name='created_hierarchy_views')
+
+    class Meta:
+        ordering = ['name']
+
+    def __str__(self):
+        return f"{self.name} ({self.view_type})"
+
+    def save(self, *args, **kwargs):
+        # Ensure only one default view
+        if self.is_default:
+            UnitHierarchyView.objects.filter(is_default=True).exclude(pk=self.pk).update(is_default=False)
+            super().save(*args, **kwargs)
+
+class UnitHierarchyNode(BaseModel):
+    """Stores custom node data for hierarchy views"""
+    hierarchy_view = models.ForeignKey(UnitHierarchyView, on_delete=models.CASCADE, related_name='nodes')
+    unit = models.ForeignKey('Unit', on_delete=models.CASCADE)
+
+    # Position in the hierarchy view
+    position_x = models.FloatField(default=0)
+    position_y = models.FloatField(default=0)
+
+    # Custom styling for this node in this view
+    custom_style = models.JSONField(default=dict, blank=True)
+
+    # Override display settings
+    show_details = models.BooleanField(default=True)
+    expanded = models.BooleanField(default=True)
+
+    class Meta:
+        unique_together = ['hierarchy_view', 'unit']
+
+    def __str__(self):
+        return f"{self.unit.name} in {self.hierarchy_view.name}"

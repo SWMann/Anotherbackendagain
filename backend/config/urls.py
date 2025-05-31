@@ -9,7 +9,8 @@ urlpatterns = [
     path('api/auth/refresh/', TokenRefreshView.as_view(), name='token_refresh'), 
     path('api/auth/', include('apps.users.urls')), 
     path('api/users/', include('apps.users.urls_users')), 
-    path('api/units/', include('apps.units.urls')), 
+    path('api/units/', include('apps.units.urls')),
+    path('api/units/hierarchy/', include('apps.units.urls_hierarchy')),
     path('api/events/', include('apps.events.urls')), 
     path('api/opords/', include('apps.operations.urls')), 
     path('api/certificates/', include('apps.training.urls')), 
@@ -18,7 +19,8 @@ urlpatterns = [
     path('api/sops/', include('apps.standards.urls')), 
     path('api/applications/', include('apps.onboarding.urls')), 
     path('api/ranks/', include('apps.units.urls_ranks')), 
-    path('api/branches/', include('apps.units.urls_branches')), 
+    path('api/branches/', include('apps.units.urls_branches')),
+
     path('api/positions/', include('apps.units.urls_positions')),
 ]
  

@@ -129,3 +129,86 @@ class ChainOfCommandSerializer(serializers.ModelSerializer):
                 'rank': user_position.user.current_rank.abbreviation if user_position.user.current_rank else None
             }
         return None
+
+
+class UnitHierarchyViewSerializer(serializers.ModelSerializer):
+    created_by_username = serializers.ReadOnlyField(source='created_by.username', default=None)
+    included_units_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = UnitHierarchyView
+        fields = '__all__'
+        read_only_fields = ['created_by']
+
+    def get_included_units_count(self, obj):
+        return obj.included_units.count() if obj.included_units.exists() else 'All Units'
+
+
+class UnitHierarchyNodeSerializer(serializers.ModelSerializer):
+    unit_name = serializers.ReadOnlyField(source='unit.name')
+    unit_abbreviation = serializers.ReadOnlyField(source='unit.abbreviation')
+    unit_type = serializers.ReadOnlyField(source='unit.unit_type')
+
+    class Meta:
+        model = UnitHierarchyNode
+        fields = '__all__'
+
+
+class UnitNodeSerializer(serializers.ModelSerializer):
+    """Serializer for unit nodes in hierarchy view"""
+    personnel_count = serializers.SerializerMethodField()
+    commander = serializers.SerializerMethodField()
+    parent_unit_id = serializers.CharField(source='parent_unit.id', allow_null=True, read_only=True)
+    branch_name = serializers.ReadOnlyField(source='branch.name')
+    branch_color = serializers.ReadOnlyField(source='branch.color_code')
+    subunits = serializers.SerializerMethodField()
+    positions = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Unit
+        fields = [
+            'id', 'name', 'abbreviation', 'unit_type', 'description',
+            'emblem_url', 'is_active', 'parent_unit_id', 'branch_name',
+            'branch_color', 'personnel_count', 'commander', 'subunits',
+            'positions', 'motto', 'established_date'
+        ]
+
+    def get_personnel_count(self, obj):
+        return UserPosition.objects.filter(unit=obj, status='Active').count()
+
+    def get_commander(self, obj):
+        if obj.commander_position:
+            commander_assignment = UserPosition.objects.filter(
+                position=obj.commander_position,
+                is_primary=True,
+                status='Active'
+            ).select_related('user').first()
+
+            if commander_assignment and commander_assignment.user:
+                return {
+                    'id': commander_assignment.user.id,
+                    'username': commander_assignment.user.username,
+                    'rank': commander_assignment.user.current_rank.abbreviation if commander_assignment.user.current_rank else None
+                }
+        return None
+
+    def get_subunits(self, obj):
+        # Only return direct children IDs to avoid deep recursion
+        return list(obj.subunits.filter(is_active=True).values_list('id', flat=True))
+
+    def get_positions(self, obj):
+        positions = obj.positions.all()
+        return [{
+            'id': pos.id,
+            'title': pos.title,
+            'is_command_position': pos.is_command_position,
+            'is_filled': UserPosition.objects.filter(position=pos, status='Active').exists()
+        } for pos in positions]
+
+
+class HierarchyDataSerializer(serializers.Serializer):
+    """Serializer for complete hierarchy data"""
+    view = UnitHierarchyViewSerializer()
+    nodes = UnitNodeSerializer(many=True)
+    edges = serializers.ListField(child=serializers.DictField())
+    node_positions = serializers.DictField(required=False)
