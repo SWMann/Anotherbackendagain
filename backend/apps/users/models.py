@@ -28,8 +28,19 @@ class UserManager(BaseUserManager):
         extra_fields.setdefault('is_staff', True)
         extra_fields.setdefault('is_admin', True)
 
-        return self.create_user(discord_id, username, email, password, **extra_fields)
+        if extra_fields.get('is_staff') is not True:
+            raise ValueError('Superuser must have is_staff=True.')
+        if extra_fields.get('is_admin') is not True:
+            raise ValueError('Superuser must have is_admin=True.')
 
+        user = self.create_user(discord_id, username, email, password, **extra_fields)
+
+        # Ensure password is properly hashed for superuser
+        if password:
+            user.set_password(password)
+            user.save(using=self._db)
+
+        return user
 
 class User(AbstractBaseUser, PermissionsMixin, BaseModel):
     discord_id = models.CharField(max_length=100, unique=True)
