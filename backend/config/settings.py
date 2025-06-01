@@ -214,6 +214,7 @@ SOCIAL_AUTH_DISCORD_SCOPE = ['identify', 'email']
 SOCIAL_AUTH_DISCORD_REDIRECT_URI = os.environ.get('SOCIAL_AUTH_DISCORD_REDIRECT_URI', '')
 
 AUTHENTICATION_BACKENDS = (
+    'django.contrib.auth.backends.ModelBackend',
     'social_core.backends.discord.DiscordOAuth2',
 )
 WHITENOISE_STATIC_PREFIX = '/anotherbackendagain-backend2/static/'
