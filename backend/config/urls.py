@@ -18,6 +18,7 @@ urlpatterns = [
     path('api/ships/', include('apps.ships.urls')),
     path('api/forums/', include('apps.forums.urls')),
     path('api/training/', include('apps.training.urls')),
+    path('api/onboarding/', include('apps.onboarding.urls')),
     path('api/sops/', include('apps.standards.urls')), 
     path('api/applications/', include('apps.onboarding.urls')), 
     path('api/ranks/', include('apps.units.urls_ranks')), 
