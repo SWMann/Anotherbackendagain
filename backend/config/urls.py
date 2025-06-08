@@ -13,14 +13,15 @@ urlpatterns = [
     path('api/units/hierarchy/', include('apps.units.urls_hierarchy')),
     path('api/events/', include('apps.events.urls')), 
     path('api/opords/', include('apps.operations.urls')), 
-    path('api/certificates/', include('apps.training.urls')), 
-    path('api/ships/', include('apps.ships.urls')), 
+    path('api/certificates/', include('apps.training.urls')),
+    path('api/announcements/', include('apps.announcements.urls')),
+    path('api/ships/', include('apps.ships.urls')),
     path('api/forums/', include('apps.forums.urls')), 
     path('api/sops/', include('apps.standards.urls')), 
     path('api/applications/', include('apps.onboarding.urls')), 
     path('api/ranks/', include('apps.units.urls_ranks')), 
     path('api/branches/', include('apps.units.urls_branches')),
-
+    path('api/vehicles/', include('apps.vehicles.urls')),
     path('api/positions/', include('apps.units.urls_positions')),
 ]
  
