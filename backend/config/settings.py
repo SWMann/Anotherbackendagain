@@ -59,6 +59,8 @@ INSTALLED_APPS = [
     'apps.forums',
     'apps.standards',
     'apps.onboarding',
+    'apps.announcements',
+    'apps.vehicles',
 ]
 
 MIDDLEWARE = [
