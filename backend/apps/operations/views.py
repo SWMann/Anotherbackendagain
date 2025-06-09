@@ -25,7 +25,7 @@ class IsCreatorOrAdminOrReadOnly(permissions.BasePermission):
 class OperationOrderViewSet(viewsets.ModelViewSet):
     queryset = OperationOrder.objects.all()
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['event_linked', 'approval_status', 'classification', 'creator']
+    filterset_fields = ['event', 'approval_status', 'classification', 'creator']
     search_fields = ['operation_name', 'situation', 'mission']
     ordering_fields = ['created_at', 'version']
     ordering = ['-created_at']
