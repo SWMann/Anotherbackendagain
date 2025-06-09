@@ -24,6 +24,13 @@ class OperationOrder(BaseModel):
         ],
         default='Draft'
     )
+    event = models.ForeignKey(
+        'events.Event',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='operation_orders'
+    )
     classification = models.CharField(
         max_length=20,
         choices=[
