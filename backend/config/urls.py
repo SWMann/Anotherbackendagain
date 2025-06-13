@@ -24,7 +24,8 @@ urlpatterns = [
     path('api/ranks/', include('apps.units.urls_ranks')), 
     path('api/branches/', include('apps.units.urls_branches')),
     path('api/vehicles/', include('apps.vehicles.urls')),
-    path('api/positions/', include('apps.units.urls_positions')),
+    path('api/roles/', include('apps.units.urls_roles')),
+    path('api/positions/', include('apps.units.urls_positions')),  # Update existing
 ]
  
 if settings.DEBUG: 
