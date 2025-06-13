@@ -10,7 +10,7 @@ from django.db.models import Count, Q
 from .models import Role, Position, UserPosition
 from .serializers import (
     RoleListSerializer, RoleDetailSerializer,
-    PositionListSerializer, UserPositionSerializer
+    PositionListSerializer, UserPositionSerializer, RoleCreateUpdateSerializer
 )
 from apps.users.views import IsAdminOrReadOnly
 from django.contrib.auth import get_user_model
@@ -35,6 +35,8 @@ class RoleViewSet(viewsets.ModelViewSet):
     def get_serializer_class(self):
         if self.action == 'list':
             return RoleListSerializer
+        elif self.action in ['create', 'update', 'partial_update']:
+            return RoleCreateUpdateSerializer
         return RoleDetailSerializer
 
     @action(detail=True, methods=['get'])

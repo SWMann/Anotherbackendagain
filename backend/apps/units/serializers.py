@@ -83,6 +83,47 @@ class RoleDetailSerializer(serializers.ModelSerializer):
         } for pos in positions]
 
 
+# Add this to backend/apps/units/serializers.py after RoleDetailSerializer
+
+class RoleCreateUpdateSerializer(serializers.ModelSerializer):
+    """Serializer for creating and updating roles with proper M2M handling"""
+    allowed_branches = serializers.PrimaryKeyRelatedField(
+        many=True,
+        queryset=Branch.objects.all(),
+        required=False
+    )
+
+    class Meta:
+        model = Role
+        fields = '__all__'
+
+    def create(self, validated_data):
+        # Extract many-to-many data
+        allowed_branches = validated_data.pop('allowed_branches', [])
+
+        # Create the role
+        role = Role.objects.create(**validated_data)
+
+        # Set many-to-many relationships
+        if allowed_branches:
+            role.allowed_branches.set(allowed_branches)
+
+        return role
+
+    def update(self, instance, validated_data):
+        # Extract many-to-many data
+        allowed_branches = validated_data.pop('allowed_branches', None)
+
+        # Update regular fields
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+
+        # Update many-to-many relationships
+        if allowed_branches is not None:
+            instance.allowed_branches.set(allowed_branches)
+
+        return instance
 # Unit Serializers
 class UnitListSerializer(serializers.ModelSerializer):
     branch_name = serializers.ReadOnlyField(source='branch.name')
