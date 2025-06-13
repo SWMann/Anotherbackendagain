@@ -110,7 +110,7 @@ class PositionViewSet(viewsets.ModelViewSet):
     queryset = Position.objects.all()
     serializer_class = PositionSerializer
     permission_classes = [IsAdminOrReadOnly]
-    filterset_fields = ['unit', 'is_command_position', 'is_staff_position']
+    filterset_fields = ['unit']  # Removed 'is_command_position', 'is_staff_position'
 
     @action(detail=True, methods=['get'], permission_classes=[permissions.IsAuthenticated])
     def users(self, request, pk=None):

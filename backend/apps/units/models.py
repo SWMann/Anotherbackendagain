@@ -162,11 +162,11 @@ class Position(BaseModel):
 
     # Role Reference
     role = models.ForeignKey('Role', on_delete=models.CASCADE,
-                             related_name='positions')
+                             related_name='positions', blank=True, null=True, )
 
     # Unit Assignment
     unit = models.ForeignKey('Unit', on_delete=models.CASCADE,
-                             related_name='positions')
+                             related_name='positions',  blank=True, null=True,)
 
     # Position-Specific Information
     title = models.CharField(max_length=200, blank=True, null=True,
