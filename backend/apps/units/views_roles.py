@@ -15,6 +15,8 @@ from .serializers import (
 from apps.users.views import IsAdminOrReadOnly
 from django.contrib.auth import get_user_model
 
+from ..users.models import User
+
 User = get_user_model()
 
 
@@ -95,8 +97,7 @@ class RoleViewSet(viewsets.ModelViewSet):
         users = users.exclude(id__in=assigned_user_ids)
 
         # Serialize the results
-        from apps.users.serializers import UserSerializer
-        serializer = UserSerializer(users, many=True)
+        serializer = User(users, many=True)
 
         return Response({
             'count': users.count(),

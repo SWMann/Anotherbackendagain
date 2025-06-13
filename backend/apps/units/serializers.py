@@ -10,6 +10,7 @@ from django.utils import timezone
 User = get_user_model()
 
 
+# Basic Serializers
 class BranchSerializer(serializers.ModelSerializer):
     class Meta:
         model = Branch
@@ -24,6 +25,7 @@ class RankSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 
+# Role Serializers
 class RoleListSerializer(serializers.ModelSerializer):
     """Simple serializer for role lists"""
     positions_count = serializers.SerializerMethodField()
@@ -81,6 +83,50 @@ class RoleDetailSerializer(serializers.ModelSerializer):
         } for pos in positions]
 
 
+# Unit Serializers
+class UnitListSerializer(serializers.ModelSerializer):
+    branch_name = serializers.ReadOnlyField(source='branch.name')
+    parent_unit_name = serializers.ReadOnlyField(source='parent_unit.name', default=None)
+    commander = serializers.SerializerMethodField()
+    personnel_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Unit
+        fields = [
+            'id', 'name', 'abbreviation', 'branch', 'branch_name',
+            'parent_unit', 'parent_unit_name', 'unit_type', 'emblem_url',
+            'is_active', 'commander', 'personnel_count'
+        ]
+
+    def get_commander(self, obj):
+        # Find command position for this unit
+        command_position = obj.positions.filter(
+            role__is_command_role=True,
+            is_active=True
+        ).first()
+
+        if command_position:
+            active_assignment = command_position.assignments.filter(
+                status='active',
+                assignment_type='primary'
+            ).select_related('user', 'user__current_rank').first()
+
+            if active_assignment:
+                return {
+                    'id': active_assignment.user.id,
+                    'username': active_assignment.user.username,
+                    'rank': active_assignment.user.current_rank.abbreviation if active_assignment.user.current_rank else None
+                }
+        return None
+
+    def get_personnel_count(self, obj):
+        return UserPosition.objects.filter(
+            position__unit=obj,
+            status='active'
+        ).count()
+
+
+# Position List Serializer (needed before UnitDetailSerializer)
 class PositionListSerializer(serializers.ModelSerializer):
     """Simple serializer for position lists"""
     role_name = serializers.ReadOnlyField(source='role.name')
@@ -112,56 +158,68 @@ class PositionListSerializer(serializers.ModelSerializer):
         return None
 
 
-class PositionDetailSerializer(serializers.ModelSerializer):
-    """Detailed serializer for position with all information"""
-    role = RoleDetailSerializer(read_only=True)
-    unit = UnitDetailSerializer(read_only=True)
-    parent_position_details = serializers.SerializerMethodField()
-    subordinate_positions = serializers.SerializerMethodField()
-    current_assignments = serializers.SerializerMethodField()
-    assignment_history = serializers.SerializerMethodField()
-    effective_requirements = serializers.SerializerMethodField()
+class UnitDetailSerializer(serializers.ModelSerializer):
+    branch = BranchSerializer(read_only=True)
+    parent_unit_details = serializers.SerializerMethodField()
+    subunits = serializers.SerializerMethodField()
+    positions = serializers.SerializerMethodField()
+    personnel = serializers.SerializerMethodField()
+    statistics = serializers.SerializerMethodField()
 
     class Meta:
-        model = Position
+        model = Unit
         fields = '__all__'
 
-    def get_parent_position_details(self, obj):
-        if obj.parent_position:
+    def get_parent_unit_details(self, obj):
+        if obj.parent_unit:
             return {
-                'id': obj.parent_position.id,
-                'display_title': obj.parent_position.display_title,
-                'unit': obj.parent_position.unit.name
+                'id': obj.parent_unit.id,
+                'name': obj.parent_unit.name,
+                'abbreviation': obj.parent_unit.abbreviation,
+                'unit_type': obj.parent_unit.unit_type
             }
         return None
 
-    def get_subordinate_positions(self, obj):
-        subordinates = obj.subordinate_positions.filter(is_active=True)
-        return PositionListSerializer(subordinates, many=True).data
+    def get_subunits(self, obj):
+        subunits = obj.subunits.filter(is_active=True)
+        return UnitListSerializer(subunits, many=True).data
 
-    def get_current_assignments(self, obj):
-        active = obj.assignments.filter(
+    def get_positions(self, obj):
+        positions = obj.positions.filter(is_active=True).select_related('role')
+        return PositionListSerializer(positions, many=True).data
+
+    def get_personnel(self, obj):
+        assignments = UserPosition.objects.filter(
+            position__unit=obj,
             status='active'
-        ).select_related('user', 'user__current_rank')
-        return UserPositionSerializer(active, many=True).data
+        ).select_related('user', 'position', 'user__current_rank')
 
-    def get_assignment_history(self, obj):
-        history = obj.assignments.select_related(
-            'user', 'user__current_rank', 'assigned_by'
-        ).order_by('-assignment_date')[:10]
-        return UserPositionSerializer(history, many=True).data
+        return [{
+            'id': assignment.user.id,
+            'username': assignment.user.username,
+            'rank': assignment.user.current_rank.abbreviation if assignment.user.current_rank else None,
+            'position': assignment.position.display_title,
+            'assignment_date': assignment.assignment_date,
+            'assignment_type': assignment.assignment_type
+        } for assignment in assignments]
 
-    def get_effective_requirements(self, obj):
+    def get_statistics(self, obj):
+        total_positions = obj.positions.filter(is_active=True).count()
+        filled_positions = obj.positions.filter(is_active=True, is_vacant=False).count()
+
         return {
-            'min_rank': RankSerializer(obj.min_rank).data if obj.min_rank else None,
-            'max_rank': RankSerializer(obj.max_rank).data if obj.max_rank else None,
-            'min_time_in_service': obj.role.min_time_in_service,
-            'min_time_in_grade': obj.role.min_time_in_grade,
-            'min_operations_count': obj.role.min_operations_count,
-            'additional_requirements': obj.additional_requirements
+            'total_positions': total_positions,
+            'filled_positions': filled_positions,
+            'vacant_positions': total_positions - filled_positions,
+            'fill_rate': round((filled_positions / total_positions * 100) if total_positions > 0 else 0, 1),
+            'personnel_count': UserPosition.objects.filter(
+                position__unit=obj,
+                status='active'
+            ).count()
         }
 
 
+# UserPosition Serializers
 class UserPositionSerializer(serializers.ModelSerializer):
     """Serializer for user position assignments"""
     user_details = serializers.SerializerMethodField()
@@ -270,110 +328,58 @@ class UserPositionCreateSerializer(serializers.ModelSerializer):
         return super().create(validated_data)
 
 
-class UnitListSerializer(serializers.ModelSerializer):
-    branch_name = serializers.ReadOnlyField(source='branch.name')
-    parent_unit_name = serializers.ReadOnlyField(source='parent_unit.name', default=None)
-    commander = serializers.SerializerMethodField()
-    personnel_count = serializers.SerializerMethodField()
+# Position Detail Serializer (needs UserPositionSerializer)
+class PositionDetailSerializer(serializers.ModelSerializer):
+    """Detailed serializer for position with all information"""
+    role = RoleDetailSerializer(read_only=True)
+    unit = UnitDetailSerializer(read_only=True)
+    parent_position_details = serializers.SerializerMethodField()
+    subordinate_positions = serializers.SerializerMethodField()
+    current_assignments = serializers.SerializerMethodField()
+    assignment_history = serializers.SerializerMethodField()
+    effective_requirements = serializers.SerializerMethodField()
 
     class Meta:
-        model = Unit
-        fields = [
-            'id', 'name', 'abbreviation', 'branch', 'branch_name',
-            'parent_unit', 'parent_unit_name', 'unit_type', 'emblem_url',
-            'is_active', 'commander', 'personnel_count'
-        ]
-
-    def get_commander(self, obj):
-        # Find command position for this unit
-        command_position = obj.positions.filter(
-            role__is_command_role=True,
-            is_active=True
-        ).first()
-
-        if command_position:
-            active_assignment = command_position.assignments.filter(
-                status='active',
-                assignment_type='primary'
-            ).select_related('user', 'user__current_rank').first()
-
-            if active_assignment:
-                return {
-                    'id': active_assignment.user.id,
-                    'username': active_assignment.user.username,
-                    'rank': active_assignment.user.current_rank.abbreviation if active_assignment.user.current_rank else None
-                }
-        return None
-
-    def get_personnel_count(self, obj):
-        return UserPosition.objects.filter(
-            position__unit=obj,
-            status='active'
-        ).count()
-
-
-class UnitDetailSerializer(serializers.ModelSerializer):
-    branch = BranchSerializer(read_only=True)
-    parent_unit_details = serializers.SerializerMethodField()
-    subunits = serializers.SerializerMethodField()
-    positions = serializers.SerializerMethodField()
-    personnel = serializers.SerializerMethodField()
-    statistics = serializers.SerializerMethodField()
-
-    class Meta:
-        model = Unit
+        model = Position
         fields = '__all__'
 
-    def get_parent_unit_details(self, obj):
-        if obj.parent_unit:
+    def get_parent_position_details(self, obj):
+        if obj.parent_position:
             return {
-                'id': obj.parent_unit.id,
-                'name': obj.parent_unit.name,
-                'abbreviation': obj.parent_unit.abbreviation,
-                'unit_type': obj.parent_unit.unit_type
+                'id': obj.parent_position.id,
+                'display_title': obj.parent_position.display_title,
+                'unit': obj.parent_position.unit.name
             }
         return None
 
-    def get_subunits(self, obj):
-        subunits = obj.subunits.filter(is_active=True)
-        return UnitListSerializer(subunits, many=True).data
+    def get_subordinate_positions(self, obj):
+        subordinates = obj.subordinate_positions.filter(is_active=True)
+        return PositionListSerializer(subordinates, many=True).data
 
-    def get_positions(self, obj):
-        positions = obj.positions.filter(is_active=True).select_related('role')
-        return PositionListSerializer(positions, many=True).data
-
-    def get_personnel(self, obj):
-        assignments = UserPosition.objects.filter(
-            position__unit=obj,
+    def get_current_assignments(self, obj):
+        active = obj.assignments.filter(
             status='active'
-        ).select_related('user', 'position', 'user__current_rank')
+        ).select_related('user', 'user__current_rank')
+        return UserPositionSerializer(active, many=True).data
 
-        return [{
-            'id': assignment.user.id,
-            'username': assignment.user.username,
-            'rank': assignment.user.current_rank.abbreviation if assignment.user.current_rank else None,
-            'position': assignment.position.display_title,
-            'assignment_date': assignment.assignment_date,
-            'assignment_type': assignment.assignment_type
-        } for assignment in assignments]
+    def get_assignment_history(self, obj):
+        history = obj.assignments.select_related(
+            'user', 'user__current_rank', 'assigned_by'
+        ).order_by('-assignment_date')[:10]
+        return UserPositionSerializer(history, many=True).data
 
-    def get_statistics(self, obj):
-        total_positions = obj.positions.filter(is_active=True).count()
-        filled_positions = obj.positions.filter(is_active=True, is_vacant=False).count()
-
+    def get_effective_requirements(self, obj):
         return {
-            'total_positions': total_positions,
-            'filled_positions': filled_positions,
-            'vacant_positions': total_positions - filled_positions,
-            'fill_rate': round((filled_positions / total_positions * 100) if total_positions > 0 else 0, 1),
-            'personnel_count': UserPosition.objects.filter(
-                position__unit=obj,
-                status='active'
-            ).count()
+            'min_rank': RankSerializer(obj.min_rank).data if obj.min_rank else None,
+            'max_rank': RankSerializer(obj.max_rank).data if obj.max_rank else None,
+            'min_time_in_service': obj.role.min_time_in_service,
+            'min_time_in_grade': obj.role.min_time_in_grade,
+            'min_operations_count': obj.role.min_operations_count,
+            'additional_requirements': obj.additional_requirements
         }
 
 
-# Keep existing serializers for backwards compatibility but update them
+# Backwards Compatibility Serializers
 class UnitMemberSerializer(serializers.ModelSerializer):
     """Updated to work with new UserPosition model"""
     id = serializers.ReadOnlyField(source='user.id')
@@ -400,8 +406,17 @@ class UnitMemberSerializer(serializers.ModelSerializer):
         return None
 
 
-# Keep remaining serializers (UnitHierarchySerializer, ChainOfCommandSerializer, etc.)
-# with minimal changes to work with the new structure
+class PositionSerializer(serializers.ModelSerializer):
+    """Backwards compatibility - redirects to PositionDetailSerializer"""
+    unit_name = serializers.ReadOnlyField(source='unit.name')
+    role_name = serializers.ReadOnlyField(source='role.name')
+
+    class Meta:
+        model = Position
+        fields = '__all__'
+
+
+# Hierarchy Serializers
 class UnitHierarchySerializer(serializers.ModelSerializer):
     subunits = serializers.SerializerMethodField()
 
@@ -529,3 +544,11 @@ class UnitNodeSerializer(serializers.ModelSerializer):
             'is_command_position': pos.role.is_command_role,
             'is_vacant': pos.is_vacant
         } for pos in positions]
+
+
+class HierarchyDataSerializer(serializers.Serializer):
+    """Serializer for complete hierarchy data"""
+    view = UnitHierarchyViewSerializer()
+    nodes = UnitNodeSerializer(many=True)
+    edges = serializers.ListField(child=serializers.DictField())
+    node_positions = serializers.DictField(required=False)
