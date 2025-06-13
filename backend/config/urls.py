@@ -27,6 +27,6 @@ urlpatterns = [
     path('api/roles/', include('apps.units.urls_roles')),
     path('api/positions/', include('apps.units.urls_positions')),  # Update existing
 ]
- 
+
 if settings.DEBUG: 
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT) 
