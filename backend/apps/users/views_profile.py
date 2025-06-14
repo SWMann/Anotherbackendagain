@@ -38,7 +38,7 @@ class UserProfileDetailView(APIView):
 
         # Get user positions with full details
         positions = UserPosition.objects.filter(user=user).select_related(
-            'position', 'unit', 'position__unit__branch'
+            'position', 'position__role', 'position__unit', 'position__unit__branch'
         ).order_by('-assignment_date')
         positions_data = UserPositionSerializer(positions, many=True).data
 
@@ -160,7 +160,7 @@ class UserUnitHistoryView(APIView):
 
         # Get all positions ordered by assignment date
         positions = UserPosition.objects.filter(user=user).select_related(
-            'position', 'unit', 'unit__branch'
+            'position', 'position__role', 'position__unit', 'position__unit__branch'
         ).order_by('-assignment_date')
 
         history = []
@@ -168,23 +168,23 @@ class UserUnitHistoryView(APIView):
             history.append({
                 'id': pos.id,
                 'unit': {
-                    'id': pos.unit.id,
-                    'name': pos.unit.name,
-                    'abbreviation': pos.unit.abbreviation,
-                    'unit_type': pos.unit.unit_type,
-                    'emblem_url': pos.unit.emblem_url,
-                    'description': pos.unit.description
-                },
+                    'id': pos.position.unit.id,
+                    'name': pos.position.unit.name,
+                    'abbreviation': pos.position.unit.abbreviation,
+                    'unit_type': pos.position.unit.unit_type,
+                    'emblem_url': pos.position.unit.emblem_url,
+                    'description': pos.position.unit.description
+                } if pos.position.unit else None,
                 'position': {
                     'id': pos.position.id,
-                    'title': pos.position.title,
-                    'abbreviation': pos.position.abbreviation,
-                    'is_command_position': pos.position.is_command_position,
-                    'is_staff_position': pos.position.is_staff_position
+                    'title': pos.position.display_title,
+                    'role_name': pos.position.role.name if pos.position.role else None,
+                    'is_command_role': pos.position.role.is_command_role if pos.position.role else False,
+                    'is_staff_role': pos.position.role.is_staff_role if pos.position.role else False
                 },
                 'assignment_date': pos.assignment_date,
                 'status': pos.status,
-                'is_primary': pos.is_primary,
+                'assignment_type': pos.assignment_type,
                 'order_number': pos.order_number
             })
 
