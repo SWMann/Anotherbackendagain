@@ -160,6 +160,32 @@ class Role(BaseModel):
 class Position(BaseModel):
     """Specific instance of a Role within a Unit"""
 
+    # Add these fields to the Position model in backend/apps/units/models.py
+
+
+
+        # Display positioning for org charts
+    display_order = models.IntegerField(default=0,
+                                        help_text="Order within same level of hierarchy")
+    manual_x = models.FloatField(null=True, blank=True,
+                                 help_text="Manual X position for org chart")
+    manual_y = models.FloatField(null=True, blank=True,
+                                 help_text="Manual Y position for org chart")
+
+    # Additional display properties
+    show_in_orbat = models.BooleanField(default=True,
+                                        help_text="Whether to show this position in ORBAT views")
+    orbat_display_level = models.CharField(max_length=20, choices=[
+        ('full', 'Full Details'),
+        ('summary', 'Summary Only'),
+        ('minimal', 'Minimal Info')
+    ], default='full')
+
+    # Command relationships
+    reports_to_external = models.ForeignKey('self', on_delete=models.SET_NULL,
+                                            null=True, blank=True,
+                                            related_name='external_subordinates',
+                                            help_text="For positions that report outside their unit")
     # Role Reference
     role = models.ForeignKey('Role', on_delete=models.CASCADE,
                              related_name='positions', blank=True, null=True, )
