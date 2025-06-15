@@ -162,19 +162,21 @@ class Position(BaseModel):
 
     # Add these fields to the Position model in backend/apps/units/models.py
 
+    # In the Position class, add these fields:
+    # ORBAT Display fields
+    display_order = models.IntegerField(
+        default=0,
+        help_text="Order of display among siblings in ORBAT"
+    )
+    show_in_orbat = models.BooleanField(
+        default=True,
+        help_text="Whether to show this position in ORBAT views"
+    )
 
+    # You can also add a property to get the current holder
 
-        # Display positioning for org charts
-    display_order = models.IntegerField(default=0,
-                                        help_text="Order within same level of hierarchy")
-    manual_x = models.FloatField(null=True, blank=True,
-                                 help_text="Manual X position for org chart")
-    manual_y = models.FloatField(null=True, blank=True,
-                                 help_text="Manual Y position for org chart")
 
     # Additional display properties
-    show_in_orbat = models.BooleanField(default=True,
-                                        help_text="Whether to show this position in ORBAT views")
     orbat_display_level = models.CharField(max_length=20, choices=[
         ('full', 'Full Details'),
         ('summary', 'Summary Only'),
@@ -229,6 +231,18 @@ class Position(BaseModel):
         if self.identifier:
             return f"{self.unit.abbreviation} {self.identifier} {self.role.name}"
         return f"{self.unit.abbreviation} {self.role.name}"
+
+    @property
+    def current_holder(self):
+        """Get the current active primary assignment holder"""
+        active_assignment = self.assignments.filter(
+            status='active',
+            assignment_type='primary'
+        ).select_related('user', 'user__current_rank').first()
+
+        if active_assignment:
+            return active_assignment.user
+        return None
 
     @property
     def display_title(self):

@@ -1,10 +1,9 @@
-from django.urls import path, include
-from rest_framework.routers import DefaultRouter
+# backend/apps/units/urls_orbat.py
+from django.urls import path
 from .views_orbat import ORBATViewSet
 
-router = DefaultRouter()
-router.register(r'', ORBATViewSet, basename='orbat')
-
+# Create URL patterns without using routers for more control
 urlpatterns = [
-    path('', include(router.urls)),
+    path('unit_orbat/', ORBATViewSet.as_view({'get': 'unit_orbat'}), name='orbat-unit'),
+    path('units_list/', ORBATViewSet.as_view({'get': 'units_list'}), name='orbat-units-list'),
 ]
