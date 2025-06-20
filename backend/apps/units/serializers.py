@@ -801,8 +801,10 @@ class PositionTemplateSerializer(serializers.ModelSerializer):
         return sum(tp.quantity for tp in obj.template_positions.all())
 
 
+# Add this updated PositionTemplateCreateSerializer to backend/apps/units/serializers.py
+
 class PositionTemplateCreateSerializer(serializers.ModelSerializer):
-    """Serializer for creating/updating position templates"""
+    """Serializer for creating/updating position templates with proper foreign key handling"""
     template_positions = serializers.ListField(
         child=serializers.DictField(),
         write_only=True,
@@ -828,13 +830,91 @@ class PositionTemplateCreateSerializer(serializers.ModelSerializer):
 
         # Create template positions
         for tp_data in template_positions_data:
+            # Convert role ID to Role instance
+            role_id = tp_data.pop('role')
+            role = Role.objects.get(id=role_id)
+
+            # Handle optional rank foreign keys
+            override_min_rank_id = tp_data.pop('override_min_rank', None)
+            override_max_rank_id = tp_data.pop('override_max_rank', None)
+
+            override_min_rank = None
+            override_max_rank = None
+
+            if override_min_rank_id:
+                override_min_rank = Rank.objects.get(id=override_min_rank_id)
+            if override_max_rank_id:
+                override_max_rank = Rank.objects.get(id=override_max_rank_id)
+
+            # Handle parent template position if provided
+            parent_template_position_id = tp_data.pop('parent_template_position', None)
+            parent_template_position = None
+            if parent_template_position_id:
+                parent_template_position = TemplatePosition.objects.get(id=parent_template_position_id)
+
             TemplatePosition.objects.create(
                 template=template,
+                role=role,
+                override_min_rank=override_min_rank,
+                override_max_rank=override_max_rank,
+                parent_template_position=parent_template_position,
                 **tp_data
             )
 
         return template
 
+    def update(self, instance, validated_data):
+        template_positions_data = validated_data.pop('template_positions', None)
+        allowed_branches = validated_data.pop('allowed_branches', None)
+
+        # Update basic fields
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+
+        # Update allowed branches if provided
+        if allowed_branches is not None:
+            instance.allowed_branches.set(allowed_branches)
+
+        # Update template positions if provided
+        if template_positions_data is not None:
+            # Delete existing template positions
+            instance.template_positions.all().delete()
+
+            # Create new template positions
+            for tp_data in template_positions_data:
+                # Convert role ID to Role instance
+                role_id = tp_data.pop('role')
+                role = Role.objects.get(id=role_id)
+
+                # Handle optional rank foreign keys
+                override_min_rank_id = tp_data.pop('override_min_rank', None)
+                override_max_rank_id = tp_data.pop('override_max_rank', None)
+
+                override_min_rank = None
+                override_max_rank = None
+
+                if override_min_rank_id:
+                    override_min_rank = Rank.objects.get(id=override_min_rank_id)
+                if override_max_rank_id:
+                    override_max_rank = Rank.objects.get(id=override_max_rank_id)
+
+                # Handle parent template position if provided
+                parent_template_position_id = tp_data.pop('parent_template_position', None)
+                parent_template_position = None
+                if parent_template_position_id:
+                    parent_template_position = TemplatePosition.objects.get(id=parent_template_position_id)
+
+                TemplatePosition.objects.create(
+                    template=instance,
+                    role=role,
+                    override_min_rank=override_min_rank,
+                    override_max_rank=override_max_rank,
+                    parent_template_position=parent_template_position,
+                    **tp_data
+                )
+
+        return instance
 
 class ApplyTemplateSerializer(serializers.Serializer):
     """Serializer for applying a template to a unit"""
