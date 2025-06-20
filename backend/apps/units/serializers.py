@@ -3,7 +3,8 @@ from rest_framework import serializers
 from .models import (
     Branch, Rank, Unit, Role, Position, UserPosition,
     UnitHierarchyView, UnitHierarchyNode, RecruitmentSlot, PositionTemplate, TemplatePosition
-)
+)from django.db.models import Sum, F
+
 from django.contrib.auth import get_user_model
 from django.utils import timezone
 
@@ -189,7 +190,6 @@ class UnitRecruitmentStatusSerializer(serializers.ModelSerializer):
 
 
 # Add this import at the top of the file
-from django.db.models import Sum, F
 
 class RoleCreateUpdateSerializer(serializers.ModelSerializer):
     """Serializer for creating and updating roles with proper M2M handling"""
@@ -801,7 +801,8 @@ class PositionTemplateSerializer(serializers.ModelSerializer):
         return sum(tp.quantity for tp in obj.template_positions.all())
 
 
-# Add this updated PositionTemplateCreateSerializer to backend/apps/units/serializers.py
+# Fixed PositionTemplateCreateSerializer for backend/apps/units/serializers.py
+# This version properly handles foreign keys and filters out unexpected fields
 
 class PositionTemplateCreateSerializer(serializers.ModelSerializer):
     """Serializer for creating/updating position templates with proper foreign key handling"""
@@ -823,43 +824,65 @@ class PositionTemplateCreateSerializer(serializers.ModelSerializer):
         template_positions_data = validated_data.pop('template_positions', [])
         allowed_branches = validated_data.pop('allowed_branches', [])
 
+        # Create the main template
         template = PositionTemplate.objects.create(**validated_data)
 
+        # Set many-to-many relationships
         if allowed_branches:
             template.allowed_branches.set(allowed_branches)
 
         # Create template positions
         for tp_data in template_positions_data:
-            # Convert role ID to Role instance
-            role_id = tp_data.pop('role')
-            role = Role.objects.get(id=role_id)
+            try:
+                # Convert role ID to Role instance
+                role_id = tp_data.pop('role')
+                role = Role.objects.get(id=role_id)
 
-            # Handle optional rank foreign keys
-            override_min_rank_id = tp_data.pop('override_min_rank', None)
-            override_max_rank_id = tp_data.pop('override_max_rank', None)
+                # Handle optional rank foreign keys
+                override_min_rank_id = tp_data.pop('override_min_rank', None)
+                override_max_rank_id = tp_data.pop('override_max_rank', None)
 
-            override_min_rank = None
-            override_max_rank = None
+                override_min_rank = None
+                override_max_rank = None
 
-            if override_min_rank_id:
-                override_min_rank = Rank.objects.get(id=override_min_rank_id)
-            if override_max_rank_id:
-                override_max_rank = Rank.objects.get(id=override_max_rank_id)
+                if override_min_rank_id:
+                    try:
+                        override_min_rank = Rank.objects.get(id=override_min_rank_id)
+                    except Rank.DoesNotExist:
+                        pass
 
-            # Handle parent template position if provided
-            parent_template_position_id = tp_data.pop('parent_template_position', None)
-            parent_template_position = None
-            if parent_template_position_id:
-                parent_template_position = TemplatePosition.objects.get(id=parent_template_position_id)
+                if override_max_rank_id:
+                    try:
+                        override_max_rank = Rank.objects.get(id=override_max_rank_id)
+                    except Rank.DoesNotExist:
+                        pass
 
-            TemplatePosition.objects.create(
-                template=template,
-                role=role,
-                override_min_rank=override_min_rank,
-                override_max_rank=override_max_rank,
-                parent_template_position=parent_template_position,
-                **tp_data
-            )
+                # Handle parent template position if provided
+                parent_template_position_id = tp_data.pop('parent_template_position', None)
+                parent_template_position = None
+                if parent_template_position_id:
+                    try:
+                        parent_template_position = TemplatePosition.objects.get(id=parent_template_position_id)
+                    except TemplatePosition.DoesNotExist:
+                        pass
+
+                # Remove any unexpected fields to prevent errors
+                allowed_fields = {
+                    'naming_pattern', 'identifier_pattern', 'quantity',
+                    'display_order', 'additional_config'
+                }
+                filtered_data = {k: v for k, v in tp_data.items() if k in allowed_fields}
+
+                TemplatePosition.objects.create(
+                    template=template,
+                    role=role,
+                    override_min_rank=override_min_rank,
+                    override_max_rank=override_max_rank,
+                    parent_template_position=parent_template_position,
+                    **filtered_data
+                )
+            except Role.DoesNotExist:
+                raise serializers.ValidationError(f"Role with id '{role_id}' does not exist")
 
         return template
 
@@ -883,36 +906,56 @@ class PositionTemplateCreateSerializer(serializers.ModelSerializer):
 
             # Create new template positions
             for tp_data in template_positions_data:
-                # Convert role ID to Role instance
-                role_id = tp_data.pop('role')
-                role = Role.objects.get(id=role_id)
+                try:
+                    # Convert role ID to Role instance
+                    role_id = tp_data.pop('role')
+                    role = Role.objects.get(id=role_id)
 
-                # Handle optional rank foreign keys
-                override_min_rank_id = tp_data.pop('override_min_rank', None)
-                override_max_rank_id = tp_data.pop('override_max_rank', None)
+                    # Handle optional rank foreign keys
+                    override_min_rank_id = tp_data.pop('override_min_rank', None)
+                    override_max_rank_id = tp_data.pop('override_max_rank', None)
 
-                override_min_rank = None
-                override_max_rank = None
+                    override_min_rank = None
+                    override_max_rank = None
 
-                if override_min_rank_id:
-                    override_min_rank = Rank.objects.get(id=override_min_rank_id)
-                if override_max_rank_id:
-                    override_max_rank = Rank.objects.get(id=override_max_rank_id)
+                    if override_min_rank_id:
+                        try:
+                            override_min_rank = Rank.objects.get(id=override_min_rank_id)
+                        except Rank.DoesNotExist:
+                            pass
 
-                # Handle parent template position if provided
-                parent_template_position_id = tp_data.pop('parent_template_position', None)
-                parent_template_position = None
-                if parent_template_position_id:
-                    parent_template_position = TemplatePosition.objects.get(id=parent_template_position_id)
+                    if override_max_rank_id:
+                        try:
+                            override_max_rank = Rank.objects.get(id=override_max_rank_id)
+                        except Rank.DoesNotExist:
+                            pass
 
-                TemplatePosition.objects.create(
-                    template=instance,
-                    role=role,
-                    override_min_rank=override_min_rank,
-                    override_max_rank=override_max_rank,
-                    parent_template_position=parent_template_position,
-                    **tp_data
-                )
+                    # Handle parent template position if provided
+                    parent_template_position_id = tp_data.pop('parent_template_position', None)
+                    parent_template_position = None
+                    if parent_template_position_id:
+                        try:
+                            parent_template_position = TemplatePosition.objects.get(id=parent_template_position_id)
+                        except TemplatePosition.DoesNotExist:
+                            pass
+
+                    # Remove any unexpected fields to prevent errors
+                    allowed_fields = {
+                        'naming_pattern', 'identifier_pattern', 'quantity',
+                        'display_order', 'additional_config'
+                    }
+                    filtered_data = {k: v for k, v in tp_data.items() if k in allowed_fields}
+
+                    TemplatePosition.objects.create(
+                        template=instance,
+                        role=role,
+                        override_min_rank=override_min_rank,
+                        override_max_rank=override_max_rank,
+                        parent_template_position=parent_template_position,
+                        **filtered_data
+                    )
+                except Role.DoesNotExist:
+                    raise serializers.ValidationError(f"Role with id '{role_id}' does not exist")
 
         return instance
 
