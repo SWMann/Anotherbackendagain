@@ -35,6 +35,7 @@ class BranchViewSet(viewsets.ModelViewSet):
 
 
 class RankViewSet(viewsets.ModelViewSet):
+    pagination_class = None
     queryset = Rank.objects.all().order_by('branch', 'tier')
     serializer_class = RankSerializer
     permission_classes = [IsAdminOrReadOnly]
