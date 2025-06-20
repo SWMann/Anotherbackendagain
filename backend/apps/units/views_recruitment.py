@@ -22,7 +22,8 @@ class RecruitmentStatusViewSet(viewsets.ViewSet):
     def brigades(self, request):
         """Get all brigades with recruitment status"""
         brigades = Unit.objects.filter(
-
+            unit_type='Brigade',
+            is_active=True
         )
         print(brigades)
         data = []
