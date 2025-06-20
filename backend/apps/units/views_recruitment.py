@@ -1,15 +1,16 @@
-
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
+from django.db.models import Sum, F, Q  # Add missing imports
 from .models import Position, UserPosition, Unit, RecruitmentSlot
 from .serializers import (
     PositionListSerializer, PositionDetailSerializer,
     UserPositionSerializer, UserPositionCreateSerializer
 )
 from apps.users.views import IsAdminOrReadOnly
+
 
 class RecruitmentStatusViewSet(viewsets.ViewSet):
     """
@@ -27,16 +28,26 @@ class RecruitmentStatusViewSet(viewsets.ViewSet):
 
         data = []
         for brigade in brigades:
-            # Calculate total available slots
+            # Get all units under this brigade (including the brigade itself)
+            # This includes all descendant units at any level
+            descendant_units = Unit.objects.filter(
+                Q(id=brigade.id) |  # Include the brigade itself
+                Q(parent_unit=brigade) |  # Direct children (battalions)
+                Q(parent_unit__parent_unit=brigade) |  # Grandchildren (companies)
+                Q(parent_unit__parent_unit__parent_unit=brigade) |  # Great-grandchildren (platoons)
+                Q(parent_unit__parent_unit__parent_unit__parent_unit=brigade)  # Great-great-grandchildren (teams/squads)
+            ).values_list('id', flat=True)
+
+            # Calculate total available slots for all units under this brigade
             available_slots = RecruitmentSlot.objects.filter(
-                unit__in=brigade.get_descendants(include_self=True),
+                unit__id__in=descendant_units,
                 is_active=True
             ).aggregate(
                 total=Sum(F('total_slots') - F('filled_slots') - F('reserved_slots'))
             )['total'] or 0
 
             data.append({
-                'id': brigade.id,
+                'id': str(brigade.id),  # Ensure UUID is serialized as string
                 'name': brigade.name,
                 'abbreviation': brigade.abbreviation,
                 'motto': brigade.motto,
@@ -93,11 +104,11 @@ class RecruitmentStatusViewSet(viewsets.ViewSet):
                     status='active',
                     assignment_type='primary'
                 ).first()
-                if leader_assignment:
+                if leader_assignment and leader_assignment.user.current_rank:
                     leader_name = f"{leader_assignment.user.current_rank.abbreviation} {leader_assignment.user.username}"
 
             data.append({
-                'id': platoon.id,
+                'id': str(platoon.id),  # Ensure UUID is serialized as string
                 'designation': platoon.unit_designation,
                 'unit_type': platoon.unit_type,
                 'company': platoon.parent_unit.name if platoon.parent_unit else None,
