@@ -2,8 +2,8 @@
 from rest_framework import serializers
 from .models import (
     Branch, Rank, Unit, Role, Position, UserPosition,
-    UnitHierarchyView, UnitHierarchyNode, RecruitmentSlot, PositionTemplate, TemplatePosition
-)from django.db.models import Sum, F
+    UnitHierarchyView, UnitHierarchyNode, RecruitmentSlot, PositionTemplate, TemplatePosition)
+from django.db.models import Sum, F
 
 from django.contrib.auth import get_user_model
 from django.utils import timezone
