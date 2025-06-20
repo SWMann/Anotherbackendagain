@@ -597,3 +597,210 @@ class UnitHierarchyNode(BaseModel):
 
     def __str__(self):
         return f"{self.unit.name} in {self.hierarchy_view.name}"
+
+
+# Add this to backend/apps/units/models.py after the existing models
+
+class PositionTemplate(BaseModel):
+    """
+    Template for creating multiple positions at once
+    Defines the structure and naming patterns for bulk position creation
+    """
+    name = models.CharField(max_length=200, unique=True)
+    description = models.TextField(blank=True, null=True)
+
+    # Template type
+    template_type = models.CharField(max_length=50, choices=[
+        ('squad', 'Squad Structure'),
+        ('platoon', 'Platoon Structure'),
+        ('company', 'Company Structure'),
+        ('battalion', 'Battalion Structure'),
+        ('brigade', 'Brigade Structure'),
+        ('division', 'Division Structure'),
+        ('custom', 'Custom Structure'),
+    ])
+
+    # Unit types this template can be applied to
+    applicable_unit_types = models.JSONField(
+        default=list,
+        help_text="List of unit types this template can be applied to"
+    )
+
+    # Branch restrictions
+    allowed_branches = models.ManyToManyField(
+        'Branch',
+        blank=True,
+        related_name='position_templates'
+    )
+
+    # Metadata
+    is_active = models.BooleanField(default=True)
+    created_by = models.ForeignKey(
+        'users.User',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='created_position_templates'
+    )
+
+    class Meta:
+        ordering = ['template_type', 'name']
+
+    def __str__(self):
+        return f"{self.name} ({self.template_type})"
+
+
+class TemplatePosition(BaseModel):
+    """
+    Individual position definition within a template
+    """
+    template = models.ForeignKey(
+        PositionTemplate,
+        on_delete=models.CASCADE,
+        related_name='template_positions'
+    )
+
+    role = models.ForeignKey(
+        'Role',
+        on_delete=models.CASCADE,
+        related_name='template_positions'
+    )
+
+    # Naming pattern
+    naming_pattern = models.CharField(
+        max_length=200,
+        help_text="Use {unit_name}, {unit_abbr}, {number}, {ordinal} as placeholders"
+    )
+
+    # Identifier pattern (e.g., "1st", "Alpha", etc.)
+    identifier_pattern = models.CharField(
+        max_length=100,
+        blank=True,
+        null=True,
+        help_text="Pattern for position identifier"
+    )
+
+    # Number of positions to create
+    quantity = models.IntegerField(default=1)
+
+    # Hierarchy
+    parent_template_position = models.ForeignKey(
+        'self',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='subordinate_template_positions'
+    )
+
+    # Display order
+    display_order = models.IntegerField(default=0)
+
+    # Override requirements
+    override_min_rank = models.ForeignKey(
+        'Rank',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='template_override_min_positions'
+    )
+
+    override_max_rank = models.ForeignKey(
+        'Rank',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='template_override_max_positions'
+    )
+
+    # Additional configuration
+    additional_config = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Additional configuration for position creation"
+    )
+
+    class Meta:
+        ordering = ['template', 'display_order']
+
+    def __str__(self):
+        return f"{self.template.name} - {self.role.name} x{self.quantity}"
+
+    def generate_positions(self, unit):
+        """
+        Generate position data based on this template position
+        """
+        positions = []
+
+        ordinals = ['1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th', '9th', '10th']
+        phonetic = ['Alpha', 'Bravo', 'Charlie', 'Delta', 'Echo', 'Foxtrot', 'Golf', 'Hotel']
+
+        for i in range(self.quantity):
+            # Generate identifier
+            identifier = None
+            if self.identifier_pattern:
+                identifier = self.identifier_pattern
+                identifier = identifier.replace('{number}', str(i + 1))
+                identifier = identifier.replace('{ordinal}', ordinals[i] if i < len(ordinals) else f"{i + 1}th")
+                identifier = identifier.replace('{phonetic}', phonetic[i] if i < len(phonetic) else f"Unit {i + 1}")
+                identifier = identifier.replace('{unit_abbr}', unit.abbreviation)
+
+            # Generate title
+            title = None
+            if self.naming_pattern:
+                title = self.naming_pattern
+                title = title.replace('{unit_name}', unit.name)
+                title = title.replace('{unit_abbr}', unit.abbreviation)
+                title = title.replace('{number}', str(i + 1))
+                title = title.replace('{ordinal}', ordinals[i] if i < len(ordinals) else f"{i + 1}th")
+
+            position_data = {
+                'role': self.role,
+                'unit': unit,
+                'identifier': identifier,
+                'title': title,
+                'override_min_rank': self.override_min_rank,
+                'override_max_rank': self.override_max_rank,
+                'display_order': self.display_order + i,
+                'template_position': self
+            }
+
+            positions.append(position_data)
+
+        return positions
+
+
+# Pre-defined templates data
+STANDARD_TEMPLATES = [
+    {
+        'name': 'Infantry Squad',
+        'template_type': 'squad',
+        'positions': [
+            {'role': 'Squad Leader', 'quantity': 1},
+            {'role': 'Team Leader', 'quantity': 2, 'identifier_pattern': '{ordinal} Team'},
+            {'role': 'Automatic Rifleman', 'quantity': 2},
+            {'role': 'Grenadier', 'quantity': 2},
+            {'role': 'Rifleman', 'quantity': 2},
+        ]
+    },
+    {
+        'name': 'Infantry Platoon HQ',
+        'template_type': 'platoon',
+        'positions': [
+            {'role': 'Platoon Leader', 'quantity': 1},
+            {'role': 'Platoon Sergeant', 'quantity': 1},
+            {'role': 'Radio Operator', 'quantity': 1},
+            {'role': 'Combat Medic', 'quantity': 1},
+        ]
+    },
+    {
+        'name': 'Company Command',
+        'template_type': 'company',
+        'positions': [
+            {'role': 'Company Commander', 'quantity': 1},
+            {'role': 'Executive Officer', 'quantity': 1},
+            {'role': 'First Sergeant', 'quantity': 1},
+            {'role': 'Company Clerk', 'quantity': 1},
+            {'role': 'Supply Sergeant', 'quantity': 1},
+        ]
+    },
+]

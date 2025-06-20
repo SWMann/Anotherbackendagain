@@ -18,6 +18,7 @@ urlpatterns = [
     path('api/units/roles/', include('apps.units.urls_roles')),
     path('api/units/positions/', include('apps.units.urls_positions')),
     path('api/units/orbat/', include('apps.units.urls_orbat')),
+    path('api/units/position-templates/', include('apps.units.urls_position_templates')),
     path('api/units/', include('apps.units.urls')),  # General units pattern LAST
 
     path('api/events/', include('apps.events.urls')),

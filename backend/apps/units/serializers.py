@@ -2,7 +2,7 @@
 from rest_framework import serializers
 from .models import (
     Branch, Rank, Unit, Role, Position, UserPosition,
-    UnitHierarchyView, UnitHierarchyNode, RecruitmentSlot
+    UnitHierarchyView, UnitHierarchyNode, RecruitmentSlot, PositionTemplate, TemplatePosition
 )
 from django.contrib.auth import get_user_model
 from django.utils import timezone
@@ -763,3 +763,124 @@ class HierarchyDataSerializer(serializers.Serializer):
     nodes = UnitNodeSerializer(many=True)
     edges = serializers.ListField(child=serializers.DictField())
     node_positions = serializers.DictField(required=False)
+
+
+# Add this to backend/apps/units/serializers.py after the existing serializers
+
+class TemplatePositionSerializer(serializers.ModelSerializer):
+    """Serializer for template positions"""
+    role_details = RoleDetailSerializer(source='role', read_only=True)
+
+    class Meta:
+        model = TemplatePosition
+        fields = [
+            'id', 'role', 'role_details', 'naming_pattern',
+            'identifier_pattern', 'quantity', 'parent_template_position',
+            'display_order', 'override_min_rank', 'override_max_rank',
+            'additional_config'
+        ]
+
+
+class PositionTemplateSerializer(serializers.ModelSerializer):
+    """Serializer for position templates"""
+    template_positions = TemplatePositionSerializer(many=True, read_only=True)
+    allowed_branches = BranchSerializer(many=True, read_only=True)
+    position_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = PositionTemplate
+        fields = [
+            'id', 'name', 'description', 'template_type',
+            'applicable_unit_types', 'allowed_branches',
+            'is_active', 'created_by', 'template_positions',
+            'position_count', 'created_at', 'updated_at'
+        ]
+        read_only_fields = ['created_by', 'created_at', 'updated_at']
+
+    def get_position_count(self, obj):
+        return sum(tp.quantity for tp in obj.template_positions.all())
+
+
+class PositionTemplateCreateSerializer(serializers.ModelSerializer):
+    """Serializer for creating/updating position templates"""
+    template_positions = serializers.ListField(
+        child=serializers.DictField(),
+        write_only=True,
+        required=False
+    )
+
+    class Meta:
+        model = PositionTemplate
+        fields = [
+            'name', 'description', 'template_type',
+            'applicable_unit_types', 'allowed_branches',
+            'is_active', 'template_positions'
+        ]
+
+    def create(self, validated_data):
+        template_positions_data = validated_data.pop('template_positions', [])
+        allowed_branches = validated_data.pop('allowed_branches', [])
+
+        template = PositionTemplate.objects.create(**validated_data)
+
+        if allowed_branches:
+            template.allowed_branches.set(allowed_branches)
+
+        # Create template positions
+        for tp_data in template_positions_data:
+            TemplatePosition.objects.create(
+                template=template,
+                **tp_data
+            )
+
+        return template
+
+
+class ApplyTemplateSerializer(serializers.Serializer):
+    """Serializer for applying a template to a unit"""
+    template_id = serializers.UUIDField()
+    unit_id = serializers.UUIDField()
+    preview_only = serializers.BooleanField(default=False)
+    position_overrides = serializers.DictField(
+        child=serializers.DictField(),
+        required=False,
+        help_text="Override specific positions in the template"
+    )
+
+    def validate(self, data):
+        # Validate template exists
+        try:
+            template = PositionTemplate.objects.get(id=data['template_id'])
+        except PositionTemplate.DoesNotExist:
+            raise serializers.ValidationError("Template not found")
+
+        # Validate unit exists
+        try:
+            unit = Unit.objects.get(id=data['unit_id'])
+        except Unit.DoesNotExist:
+            raise serializers.ValidationError("Unit not found")
+
+        # Check if template is applicable to unit type
+        if template.applicable_unit_types and unit.unit_type not in template.applicable_unit_types:
+            raise serializers.ValidationError(
+                f"Template is not applicable to unit type '{unit.unit_type}'"
+            )
+
+        # Check branch restrictions
+        if template.allowed_branches.exists() and unit.branch not in template.allowed_branches.all():
+            raise serializers.ValidationError(
+                "Template is not allowed for this unit's branch"
+            )
+
+        data['template'] = template
+        data['unit'] = unit
+        return data
+
+
+class TemplatePreviewSerializer(serializers.Serializer):
+    """Serializer for template preview results"""
+    positions = serializers.ListField(
+        child=serializers.DictField()
+    )
+    hierarchy = serializers.DictField()
+    summary = serializers.DictField()
