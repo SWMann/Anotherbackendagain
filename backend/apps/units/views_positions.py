@@ -10,7 +10,8 @@ from django.utils import timezone
 from .models import Position, UserPosition
 from .serializers import (
     PositionListSerializer, PositionDetailSerializer,
-    UserPositionSerializer, UserPositionCreateSerializer
+    UserPositionSerializer, UserPositionCreateSerializer,
+    PositionCreateUpdateSerializer
 )
 from apps.users.views import IsAdminOrReadOnly
 
@@ -33,6 +34,8 @@ class PositionViewSet(viewsets.ModelViewSet):
             return PositionListSerializer
         elif self.action in ['assign', 'vacate']:
             return UserPositionCreateSerializer
+        elif self.action in ['create', 'update', 'partial_update']:
+            return PositionCreateUpdateSerializer
         return PositionDetailSerializer
 
     @action(detail=True, methods=['post'], permission_classes=[permissions.IsAdminUser])

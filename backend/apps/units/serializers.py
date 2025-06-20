@@ -562,6 +562,65 @@ class PositionSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 
+# Add this to backend/apps/units/serializers.py after PositionDetailSerializer
+
+class PositionCreateUpdateSerializer(serializers.ModelSerializer):
+    """Serializer for creating and updating positions"""
+
+    class Meta:
+        model = Position
+        fields = [
+            'id', 'role', 'unit', 'title', 'identifier', 'parent_position',
+            'is_active', 'is_vacant', 'override_min_rank', 'override_max_rank',
+            'additional_requirements', 'notes', 'display_order', 'show_in_orbat',
+            'orbat_display_level', 'reports_to_external',
+            'is_available_for_recruitment', 'recruitment_priority',
+            'requires_flight_qualification'
+        ]
+        read_only_fields = ['id']
+
+    def validate(self, data):
+        # Validate that role and unit are provided for new positions
+        if self.instance is None:  # Creating new position
+            if not data.get('role'):
+                raise serializers.ValidationError("Role is required when creating a position")
+            if not data.get('unit'):
+                raise serializers.ValidationError("Unit is required when creating a position")
+
+        # Check for unique constraint
+        role = data.get('role', self.instance.role if self.instance else None)
+        unit = data.get('unit', self.instance.unit if self.instance else None)
+        identifier = data.get('identifier', self.instance.identifier if self.instance else None)
+
+        if role and unit:
+            # Check if this combination already exists
+            existing = Position.objects.filter(
+                unit=unit,
+                role=role,
+                identifier=identifier
+            ).exclude(pk=self.instance.pk if self.instance else None)
+
+            if existing.exists():
+                raise serializers.ValidationError(
+                    "A position with this role and identifier already exists in this unit"
+                )
+
+        return data
+
+    def create(self, validated_data):
+        # Set default values
+        if 'is_vacant' not in validated_data:
+            validated_data['is_vacant'] = True
+        if 'is_active' not in validated_data:
+            validated_data['is_active'] = True
+
+        return super().create(validated_data)
+
+    def to_representation(self, instance):
+        # Return the detailed representation after create/update
+        return PositionDetailSerializer(instance, context=self.context).data
+
+
 # Hierarchy Serializers
 class UnitHierarchySerializer(serializers.ModelSerializer):
     subunits = serializers.SerializerMethodField()
