@@ -71,7 +71,7 @@ class RecruitmentStatusViewSet(viewsets.ViewSet):
         print(brigade)
         # Get all platoons under this brigade
         platoons = Unit.objects.filter(
-            unit_type='platoon',
+            unit_type='Platoon',
             is_active=True
         ).filter(
             # Complex query to get all platoons under brigade
