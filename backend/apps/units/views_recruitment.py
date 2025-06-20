@@ -66,6 +66,7 @@ class RecruitmentStatusViewSet(viewsets.ViewSet):
     @action(detail=True, methods=['get'])
     def platoons(self, request, pk):
         """Get platoons for a specific brigade"""
+        print(pk)
         brigade = get_object_or_404(Unit, pk=pk, unit_type='brigade')
 
         # Get all platoons under this brigade
