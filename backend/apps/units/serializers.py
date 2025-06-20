@@ -418,6 +418,8 @@ class UserPositionSerializer(serializers.ModelSerializer):
         return None
 
 
+# Add this to backend/apps/units/serializers.py in the UserPositionCreateSerializer class
+
 class UserPositionCreateSerializer(serializers.ModelSerializer):
     """Serializer for creating/updating position assignments"""
 
@@ -429,6 +431,10 @@ class UserPositionCreateSerializer(serializers.ModelSerializer):
         ]
 
     def validate(self, data):
+        # Skip validation if force flag is set in context
+        if self.context.get('force', False):
+            return data
+
         # Check if user meets requirements
         position = data['position']
         user = data['user']
