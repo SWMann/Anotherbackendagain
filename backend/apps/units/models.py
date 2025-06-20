@@ -356,12 +356,20 @@ class Position(BaseModel):
     @property
     def min_rank(self):
         """Get effective minimum rank (override or role default)"""
-        return self.override_min_rank or self.role.min_rank
+        if self.override_min_rank:
+            return self.override_min_rank
+        if self.role:
+            return self.role.min_rank
+        return None
 
     @property
     def max_rank(self):
         """Get effective maximum rank (override or role default)"""
-        return self.override_max_rank or self.role.max_rank
+        if self.override_max_rank:
+            return self.override_max_rank
+        if self.role:
+            return self.role.max_rank
+        return None
 
     @property
     def commander_of_unit(self):

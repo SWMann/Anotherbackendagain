@@ -447,7 +447,7 @@ class UserPositionCreateSerializer(serializers.ModelSerializer):
                 )
 
         # Check time in service
-        if position.role.min_time_in_service > 0:
+        if position.role and position.role.min_time_in_service > 0:
             days_in_service = (timezone.now() - user.join_date).days
             if days_in_service < position.role.min_time_in_service:
                 raise serializers.ValidationError(
