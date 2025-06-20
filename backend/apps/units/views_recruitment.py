@@ -24,7 +24,7 @@ class RecruitmentStatusViewSet(viewsets.ViewSet):
         brigades = Unit.objects.filter(
             unit_level='Brigade',
             is_active=True
-        ).select_related('branch')
+        )
         print(brigades)
         data = []
         for brigade in brigades:
