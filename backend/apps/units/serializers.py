@@ -2,7 +2,7 @@
 from rest_framework import serializers
 from .models import (
     Branch, Rank, Unit, Role, Position, UserPosition,
-    UnitHierarchyView, UnitHierarchyNode
+    UnitHierarchyView, UnitHierarchyNode, RecruitmentSlot
 )
 from django.contrib.auth import get_user_model
 from django.utils import timezone
@@ -84,6 +84,112 @@ class RoleDetailSerializer(serializers.ModelSerializer):
 
 
 # Add this to backend/apps/units/serializers.py after RoleDetailSerializer
+
+# Add to backend/apps/units/serializers.py after the existing serializers
+
+class RecruitmentSlotSerializer(serializers.ModelSerializer):
+    """Serializer for recruitment slots"""
+    unit_name = serializers.ReadOnlyField(source='unit.name')
+    role_name = serializers.ReadOnlyField(source='role.name')
+    role_category = serializers.ReadOnlyField(source='role.category')
+    available_slots = serializers.ReadOnlyField()
+
+    class Meta:
+        model = RecruitmentSlot
+        fields = [
+            'id', 'unit', 'unit_name', 'role', 'role_name', 'role_category',
+            'career_track', 'total_slots', 'filled_slots', 'reserved_slots',
+            'available_slots', 'is_active', 'notes', 'created_at', 'updated_at'
+        ]
+        read_only_fields = ['created_at', 'updated_at', 'available_slots']
+
+    def validate(self, data):
+        # Ensure filled + reserved doesn't exceed total
+        total = data.get('total_slots', self.instance.total_slots if self.instance else 0)
+        filled = data.get('filled_slots', self.instance.filled_slots if self.instance else 0)
+        reserved = data.get('reserved_slots', self.instance.reserved_slots if self.instance else 0)
+
+        if filled + reserved > total:
+            raise serializers.ValidationError(
+                "Filled slots + reserved slots cannot exceed total slots"
+            )
+        return data
+
+
+class RecruitmentSlotCreateUpdateSerializer(serializers.ModelSerializer):
+    """Serializer for creating/updating recruitment slots"""
+
+    class Meta:
+        model = RecruitmentSlot
+        fields = [
+            'unit', 'role', 'career_track', 'total_slots',
+            'filled_slots', 'reserved_slots', 'is_active', 'notes'
+        ]
+
+    def validate(self, data):
+        # Check for duplicate slots
+        unit = data.get('unit', self.instance.unit if self.instance else None)
+        role = data.get('role', self.instance.role if self.instance else None)
+        career_track = data.get('career_track', self.instance.career_track if self.instance else None)
+
+        existing = RecruitmentSlot.objects.filter(
+            unit=unit,
+            role=role,
+            career_track=career_track
+        ).exclude(pk=self.instance.pk if self.instance else None)
+
+        if existing.exists():
+            raise serializers.ValidationError(
+                "A recruitment slot for this unit, role, and career track already exists"
+            )
+
+        return super().validate(data)
+
+
+class UnitRecruitmentStatusSerializer(serializers.ModelSerializer):
+    """Serializer for unit recruitment status"""
+    recruitment_slots = RecruitmentSlotSerializer(many=True, read_only=True)
+    total_slots = serializers.SerializerMethodField()
+    total_filled = serializers.SerializerMethodField()
+    total_available = serializers.SerializerMethodField()
+    fill_rate = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Unit
+        fields = [
+            'id', 'name', 'abbreviation', 'recruitment_status',
+            'max_personnel', 'target_personnel', 'recruitment_notes',
+            'recruitment_slots', 'total_slots', 'total_filled',
+            'total_available', 'fill_rate'
+        ]
+
+    def get_total_slots(self, obj):
+        return obj.recruitment_slots.filter(is_active=True).aggregate(
+            total=Sum('total_slots')
+        )['total'] or 0
+
+    def get_total_filled(self, obj):
+        return obj.recruitment_slots.filter(is_active=True).aggregate(
+            total=Sum('filled_slots')
+        )['total'] or 0
+
+    def get_total_available(self, obj):
+        slots = obj.recruitment_slots.filter(is_active=True)
+        total = 0
+        for slot in slots:
+            total += slot.available_slots
+        return total
+
+    def get_fill_rate(self, obj):
+        total = self.get_total_slots(obj)
+        filled = self.get_total_filled(obj)
+        if total > 0:
+            return round((filled / total) * 100, 1)
+        return 0
+
+
+# Add this import at the top of the file
+from django.db.models import Sum, F
 
 class RoleCreateUpdateSerializer(serializers.ModelSerializer):
     """Serializer for creating and updating roles with proper M2M handling"""

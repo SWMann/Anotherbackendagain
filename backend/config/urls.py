@@ -14,6 +14,7 @@ urlpatterns = [
     path('api/units/hierarchy/', include('apps.units.urls_hierarchy')),  # Move this BEFORE general units
     path('api/units/branches/', include('apps.units.urls_branches')),
     path('api/units/ranks/', include('apps.units.urls_ranks')),
+    path('api/units/recruitment/', include('apps.units.urls_recruitment')),
     path('api/units/roles/', include('apps.units.urls_roles')),
     path('api/units/positions/', include('apps.units.urls_positions')),
     path('api/units/orbat/', include('apps.units.urls_orbat')),
