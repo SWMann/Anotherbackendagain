@@ -25,7 +25,7 @@ class RecruitmentStatusViewSet(viewsets.ViewSet):
             unit_level='brigade',
             is_active=True
         ).select_related('branch')
-        print(brigades)
+        print("Brigades:"+brigades)
         data = []
         for brigade in brigades:
             # Get all units under this brigade (including the brigade itself)
@@ -37,7 +37,7 @@ class RecruitmentStatusViewSet(viewsets.ViewSet):
                 Q(parent_unit__parent_unit__parent_unit=brigade) |  # Great-grandchildren (platoons)
                 Q(parent_unit__parent_unit__parent_unit__parent_unit=brigade)  # Great-great-grandchildren (teams/squads)
             ).values_list('id', flat=True)
-            print(descendant_units)
+            print("Descendant Units:"+descendant_units)
 
             # Calculate total available slots for all units under this brigade
             available_slots = RecruitmentSlot.objects.filter(
@@ -46,7 +46,7 @@ class RecruitmentStatusViewSet(viewsets.ViewSet):
             ).aggregate(
                 total=Sum(F('total_slots') - F('filled_slots') - F('reserved_slots'))
             )['total'] or 0
-            print(available_slots)
+            print("Slots:"+available_slots)
             data.append({
                 'id': str(brigade.id),  # Ensure UUID is serialized as string
                 'name': brigade.name,
