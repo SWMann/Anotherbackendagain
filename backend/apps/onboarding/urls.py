@@ -4,6 +4,7 @@ from .views import (
     CommissionStageViewSet, ApplicationViewSet, UserOnboardingProgressViewSet,
     BranchApplicationViewSet, MentorAssignmentViewSet, UserOnboardingActionViewSet
 )
+from ..units.views_recruitment import RecruitmentStatusViewSet
 
 router = DefaultRouter()
 router.register(r'commission-stages', CommissionStageViewSet)
@@ -20,4 +21,8 @@ urlpatterns = [
     path('my/onboarding-progress/', UserOnboardingProgressViewSet.as_view({'get': 'my'}), name='my-onboarding-progress'),
     path('my/branch-applications/', BranchApplicationViewSet.as_view({'get': 'my'}), name='my-branch-applications'),
     path('my/next-requirements/', UserOnboardingActionViewSet.as_view({'get': 'next_requirements'}), name='my-next-requirements'),
+    path('recruitment/brigades/', RecruitmentStatusViewSet.as_view({'get': 'brigades'})),
+    path('recruitment/brigades/<uuid:pk>/platoons/', RecruitmentStatusViewSet.as_view({'get': 'platoons'})),
+    path('recruitment/check-eligibility/', ApplicationViewSet.as_view({'post': 'check_eligibility'})),
+
 ]

@@ -19,6 +19,7 @@ class CommissionStage(BaseModel):
         ordering = ['order_index']
 
 
+
 class Application(BaseModel):
     discord_id = models.CharField(max_length=100)
     username = models.CharField(max_length=150)
@@ -46,6 +47,56 @@ class Application(BaseModel):
     reviewer_notes = models.TextField(blank=True, null=True)
     interview_date = models.DateTimeField(null=True, blank=True)
     onboarding_complete = models.BooleanField(default=False)
+
+    preferred_brigade = models.ForeignKey(
+        'units.Unit',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='brigade_applications',
+        limit_choices_to={'unit_level': 'brigade'}
+    )
+
+    preferred_battalion = models.ForeignKey(
+        'units.Unit',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='battalion_applications',
+        limit_choices_to={'unit_level': 'battalion'}
+    )
+
+    preferred_platoon = models.ForeignKey(
+        'units.Unit',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='platoon_applications',
+        limit_choices_to={'unit_level': 'platoon'}
+    )
+
+    # Validate aviation requirements
+    has_flight_experience = models.BooleanField(
+        default=False,
+        help_text="Applicant claims flight simulation experience"
+    )
+
+    flight_hours = models.IntegerField(
+        default=0,
+        help_text="Self-reported flight simulation hours"
+    )
+
+    def clean(self):
+        # Validate aviation unit applications
+        if self.preferred_unit and self.preferred_unit.is_aviation_only:
+            if self.entry_path != 'warrant':
+                raise ValueError(
+                    "Aviation units only accept warrant officer candidates"
+                )
+            if not self.has_flight_experience:
+                raise ValueError(
+                    "Aviation units require flight experience"
+                )
 
     def __str__(self):
         return f"Application from {self.username}"

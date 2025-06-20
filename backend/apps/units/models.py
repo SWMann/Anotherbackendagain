@@ -50,7 +50,82 @@ class Unit(BaseModel):
     established_date = models.DateField(blank=True, null=True)
     is_active = models.BooleanField(default=True)
     location = models.CharField(max_length=100, blank=True, null=True)
+    recruitment_status = models.CharField(
+        max_length=20,
+        choices=[
+            ('open', 'Open for Recruitment'),
+            ('limited', 'Limited Recruitment'),
+            ('closed', 'Closed to Recruitment'),
+            ('frozen', 'Temporarily Frozen')
+        ],
+        default='open'
+    )
 
+    max_personnel = models.IntegerField(
+        default=0,
+        help_text="Maximum authorized personnel for this unit"
+    )
+
+    target_personnel = models.IntegerField(
+        default=0,
+        help_text="Target personnel strength"
+    )
+
+    recruitment_notes = models.TextField(
+        blank=True,
+        null=True,
+        help_text="Notes about recruitment status/requirements"
+    )
+
+    # Add fields for better hierarchy tracking
+    unit_level = models.CharField(
+        max_length=20,
+        choices=[
+            ('division', 'Division'),
+            ('brigade', 'Brigade'),
+            ('battalion', 'Battalion'),
+            ('company', 'Company'),
+            ('platoon', 'Platoon'),
+            ('squad', 'Squad'),
+            ('team', 'Team')
+        ],
+        blank=True,
+        null=True
+    )
+
+    unit_designation = models.CharField(
+        max_length=50,
+        blank=True,
+        null=True,
+        help_text="Military designation (e.g., '1st PLT, A/1-61 IN')"
+    )
+
+    # Aviation-specific flag
+    is_aviation_only = models.BooleanField(
+        default=False,
+        help_text="Unit restricted to aviation warrant officers only"
+    )
+
+    # Add method to check if unit is accepting applications
+    def is_accepting_applications(self):
+        """Check if unit and all parent units are open for recruitment"""
+        if self.recruitment_status in ['closed', 'frozen']:
+            return False
+
+        # Check parent units recursively
+        if self.parent_unit:
+            return self.parent_unit.is_accepting_applications()
+
+        return True
+
+    def get_available_slots(self):
+        """Calculate available slots based on positions"""
+        total_positions = self.positions.filter(is_active=True).count()
+        filled_positions = self.positions.filter(
+            is_active=True,
+            is_vacant=False
+        ).count()
+        return total_positions - filled_positions
     def __str__(self):
         return self.name
 
@@ -223,6 +298,29 @@ class Position(BaseModel):
     # Metadata
     notes = models.TextField(blank=True, null=True)
 
+    is_available_for_recruitment = models.BooleanField(
+        default=True,
+        help_text="Whether this specific position can be applied for"
+    )
+
+    recruitment_priority = models.CharField(
+        max_length=20,
+        choices=[
+            ('critical', 'Critical - Fill Immediately'),
+            ('high', 'High Priority'),
+            ('normal', 'Normal Priority'),
+            ('low', 'Low Priority'),
+            ('hold', 'On Hold')
+        ],
+        default='normal'
+    )
+
+    # Track position requirements more specifically
+    requires_flight_qualification = models.BooleanField(
+        default=False,
+        help_text="Position requires aviation qualifications"
+    )
+
     class Meta:
         ordering = ['unit', 'role__sort_order']
         unique_together = ['unit', 'role', 'identifier']
@@ -231,6 +329,8 @@ class Position(BaseModel):
         if self.identifier:
             return f"{self.unit.abbreviation} {self.identifier} {self.role.name}"
         return f"{self.unit.abbreviation} {self.role.name}"
+
+
 
     @property
     def current_holder(self):
@@ -345,6 +445,76 @@ class UserPosition(BaseModel):
         """Compatibility property for existing code"""
         return self.assignment_type == 'primary'
 
+
+class RecruitmentSlot(BaseModel):
+    """
+    Track recruitment slots at various unit levels
+    Allows fine-grained control over available positions
+    """
+    unit = models.ForeignKey(
+        'Unit',
+        on_delete=models.CASCADE,
+        related_name='recruitment_slots'
+    )
+
+    role = models.ForeignKey(
+        'Role',
+        on_delete=models.CASCADE,
+        related_name='recruitment_slots'
+    )
+
+    career_track = models.CharField(
+        max_length=20,
+        choices=[
+            ('enlisted', 'Enlisted'),
+            ('warrant', 'Warrant Officer'),
+            ('officer', 'Commissioned Officer')
+        ]
+    )
+
+    total_slots = models.IntegerField(default=0)
+    filled_slots = models.IntegerField(default=0)
+    reserved_slots = models.IntegerField(
+        default=0,
+        help_text="Slots reserved for incoming personnel"
+    )
+
+    is_active = models.BooleanField(default=True)
+
+    notes = models.TextField(blank=True, null=True)
+
+    @property
+    def available_slots(self):
+        return self.total_slots - (self.filled_slots + self.reserved_slots)
+
+    class Meta:
+        unique_together = ['unit', 'role', 'career_track']
+
+
+
+class UnitStrengthReport(BaseModel):
+    """
+    Track unit strength over time for reporting
+    """
+    unit = models.ForeignKey(
+        'Unit',
+        on_delete=models.CASCADE,
+        related_name='strength_reports'
+    )
+
+    report_date = models.DateField(auto_now_add=True)
+
+    authorized_strength = models.IntegerField()
+    assigned_strength = models.IntegerField()
+    present_strength = models.IntegerField()
+
+    officer_count = models.IntegerField(default=0)
+    warrant_count = models.IntegerField(default=0)
+    enlisted_count = models.IntegerField(default=0)
+
+    class Meta:
+        ordering = ['-report_date']
+        unique_together = ['unit', 'report_date']
 
 # Keep existing models for backwards compatibility
 class UnitHierarchyView(BaseModel):

@@ -1,0 +1,114 @@
+
+from rest_framework import viewsets, permissions, status
+from rest_framework.decorators import action
+from rest_framework.response import Response
+from django.shortcuts import get_object_or_404
+from django.utils import timezone
+from .models import Position, UserPosition, Unit, RecruitmentSlot
+from .serializers import (
+    PositionListSerializer, PositionDetailSerializer,
+    UserPositionSerializer, UserPositionCreateSerializer
+)
+from apps.users.views import IsAdminOrReadOnly
+
+class RecruitmentStatusViewSet(viewsets.ViewSet):
+    """
+    Provide recruitment status for application portal
+    """
+    permission_classes = [permissions.AllowAny]
+
+    @action(detail=False, methods=['get'])
+    def brigades(self, request):
+        """Get all brigades with recruitment status"""
+        brigades = Unit.objects.filter(
+            unit_level='brigade',
+            is_active=True
+        ).select_related('branch')
+
+        data = []
+        for brigade in brigades:
+            # Calculate total available slots
+            available_slots = RecruitmentSlot.objects.filter(
+                unit__in=brigade.get_descendants(include_self=True),
+                is_active=True
+            ).aggregate(
+                total=Sum(F('total_slots') - F('filled_slots') - F('reserved_slots'))
+            )['total'] or 0
+
+            data.append({
+                'id': brigade.id,
+                'name': brigade.name,
+                'abbreviation': brigade.abbreviation,
+                'motto': brigade.motto,
+                'description': brigade.description,
+                'unit_type': brigade.unit_type,
+                'recruitment_status': brigade.recruitment_status,
+                'available_slots': available_slots,
+                'is_aviation_only': brigade.is_aviation_only,
+                'emblem_url': brigade.emblem_url,
+                'recruitment_notes': brigade.recruitment_notes
+            })
+
+        return Response(data)
+
+    @action(detail=True, methods=['get'])
+    def platoons(self, request, pk=None):
+        """Get platoons for a specific brigade"""
+        brigade = get_object_or_404(Unit, pk=pk, unit_level='brigade')
+
+        # Get all platoons under this brigade
+        platoons = Unit.objects.filter(
+            unit_level='platoon',
+            is_active=True
+        ).filter(
+            # Complex query to get all platoons under brigade
+            Q(parent_unit__parent_unit__parent_unit=brigade) |  # Brigade->Battalion->Company->Platoon
+            Q(parent_unit__parent_unit=brigade)  # Brigade->Battalion->Platoon (for special units)
+        ).select_related(
+            'parent_unit',  # Company
+            'parent_unit__parent_unit'  # Battalion
+        ).prefetch_related('recruitment_slots')
+
+        data = []
+        for platoon in platoons:
+            # Get slot information
+            slots = platoon.recruitment_slots.filter(is_active=True)
+            total_available = sum(slot.available_slots for slot in slots)
+
+            # Get current strength
+            current_strength = UserPosition.objects.filter(
+                position__unit=platoon,
+                status='active'
+            ).count()
+
+            # Get platoon leader
+            leader_position = platoon.positions.filter(
+                role__is_command_role=True,
+                is_active=True
+            ).first()
+
+            leader_name = "Vacant"
+            if leader_position and not leader_position.is_vacant:
+                leader_assignment = leader_position.assignments.filter(
+                    status='active',
+                    assignment_type='primary'
+                ).first()
+                if leader_assignment:
+                    leader_name = f"{leader_assignment.user.current_rank.abbreviation} {leader_assignment.user.username}"
+
+            data.append({
+                'id': platoon.id,
+                'designation': platoon.unit_designation,
+                'unit_type': platoon.unit_type,
+                'company': platoon.parent_unit.name if platoon.parent_unit else None,
+                'battalion': platoon.parent_unit.parent_unit.name if platoon.parent_unit and platoon.parent_unit.parent_unit else None,
+                'current_strength': current_strength,
+                'max_strength': platoon.max_personnel,
+                'available_slots': total_available,
+                'leader': leader_name,
+                'recruitment_status': platoon.recruitment_status,
+                'is_accepting_applications': platoon.is_accepting_applications(),
+                'career_tracks_available': list(slots.values_list('career_track', flat=True).distinct())
+            })
+
+        return Response(data)
