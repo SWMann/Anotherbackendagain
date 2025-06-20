@@ -519,12 +519,11 @@ class PositionDetailSerializer(serializers.ModelSerializer):
         return {
             'min_rank': RankSerializer(obj.min_rank).data if obj.min_rank else None,
             'max_rank': RankSerializer(obj.max_rank).data if obj.max_rank else None,
-            'min_time_in_service': obj.role.min_time_in_service,
-            'min_time_in_grade': obj.role.min_time_in_grade,
-            'min_operations_count': obj.role.min_operations_count,
+            'min_time_in_service': obj.role.min_time_in_service if obj.role else 0,
+            'min_time_in_grade': obj.role.min_time_in_grade if obj.role else 0,
+            'min_operations_count': obj.role.min_operations_count if obj.role else 0,
             'additional_requirements': obj.additional_requirements
         }
-
 
 # Backwards Compatibility Serializers
 class UnitMemberSerializer(serializers.ModelSerializer):
