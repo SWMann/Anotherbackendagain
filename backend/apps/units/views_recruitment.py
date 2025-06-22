@@ -61,7 +61,7 @@ class RecruitmentStatusViewSet(viewsets.ViewSet):
                 'available_slots': available_slots,
                 'is_aviation_only': brigade.is_aviation_only,
                 'emblem_url': brigade.emblem_url,
-                'recruitment_notes': brigade.recruitment_notes
+                'recruitment_notes': brigade.recruitment_notes,
                 'authorized_mos': [
                     {'id': mos.id, 'code': mos.code, 'title': mos.title}
                     for mos in authorized_mos
