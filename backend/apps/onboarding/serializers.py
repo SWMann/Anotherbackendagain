@@ -28,7 +28,37 @@ class ApplicationDetailSerializer(serializers.ModelSerializer):
     preferred_unit_name = serializers.ReadOnlyField(source='preferred_unit.name', default=None)
     referrer_username = serializers.ReadOnlyField(source='referrer.username', default=None)
     reviewer_username = serializers.ReadOnlyField(source='reviewer.username', default=None)
+    mos_priority_1_details = serializers.SerializerMethodField()
+    mos_priority_2_details = serializers.SerializerMethodField()
+    mos_priority_3_details = serializers.SerializerMethodField()
 
+
+    def get_mos_priority_1_details(self, obj):
+        if obj.mos_priority_1:
+            return {
+                'id': obj.mos_priority_1.id,
+                'code': obj.mos_priority_1.code,
+                'title': obj.mos_priority_1.title
+            }
+        return None
+
+    def get_mos_priority_2_details(self, obj):
+        if obj.mos_priority_2:
+            return {
+                'id': obj.mos_priority_2.id,
+                'code': obj.mos_priority_2.code,
+                'title': obj.mos_priority_2.title
+            }
+        return None
+
+    def get_mos_priority_3_details(self, obj):
+        if obj.mos_priority_3:
+            return {
+                'id': obj.mos_priority_3.id,
+                'code': obj.mos_priority_3.code,
+                'title': obj.mos_priority_3.title
+            }
+        return None
     class Meta:
         model = Application
         fields = '__all__'
@@ -37,8 +67,12 @@ class ApplicationDetailSerializer(serializers.ModelSerializer):
 class ApplicationCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Application
-        fields = ['discord_id', 'username', 'email', 'preferred_branch',
-                  'preferred_unit', 'motivation', 'experience', 'referrer']
+        fields = [
+            'discord_id', 'username', 'email', 'preferred_branch',
+            'preferred_unit', 'motivation', 'experience', 'referrer',
+            'mos_priority_1', 'mos_priority_2', 'mos_priority_3',
+            'mos_waiver_requested', 'mos_waiver_reason'
+        ]
 
 
 class ApplicationUpdateSerializer(serializers.ModelSerializer):

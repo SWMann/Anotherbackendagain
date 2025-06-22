@@ -8,6 +8,9 @@ User = get_user_model()
 
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
+        primary_mos_details = serializers.SerializerMethodField()
+        secondary_mos_details = serializers.SerializerMethodField()
+
         model = User
         fields = [
             'id', 'discord_id', 'username', 'email', 'avatar_url', 'bio',
@@ -18,10 +21,31 @@ class UserSerializer(serializers.ModelSerializer):
             'training_completion_date', 'application_date',
             'bit_completion_date', 'branch_application_date',
             'branch_induction_date', 'unit_assignment_date',
-            'officer_candidate', 'warrant_officer_candidate'
+            'officer_candidate', 'warrant_officer_candidate', 'primary_mos', 'secondary_mos', 'mos_skill_level',
+            'mos_qualified_date', 'primary_mos_details', 'secondary_mos_details'
         ]
         read_only_fields = ['id', 'discord_id', 'join_date', 'is_active', 'is_staff', 'is_admin']
 
+    def get_primary_mos_details(self, obj):
+        if obj.primary_mos:
+            return {
+                'id': obj.primary_mos.id,
+                'code': obj.primary_mos.code,
+                'title': obj.primary_mos.title,
+                'category': obj.primary_mos.category
+            }
+        return None
+
+    def get_secondary_mos_details(self, obj):
+        return [
+            {
+                'id': mos.id,
+                'code': mos.code,
+                'title': mos.title,
+                'category': mos.category
+            }
+            for mos in obj.secondary_mos.all()
+        ]
 
 class ProfileSerializer(serializers.ModelSerializer):
     class Meta:

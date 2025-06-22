@@ -20,7 +20,8 @@ urlpatterns = [
     path('api/units/orbat/', include('apps.units.urls_orbat')),
     path('api/units/position-templates/', include('apps.units.urls_position_templates')),
     path('api/units/', include('apps.units.urls')),  # General units pattern LAST
-
+# Add this line to urlpatterns in config/urls.py
+    path('api/units/mos/', include('apps.units.urls_mos')),
     path('api/events/', include('apps.events.urls')),
     path('api/opords/', include('apps.operations.urls')),
     path('api/certificates/', include('apps.training.urls')),

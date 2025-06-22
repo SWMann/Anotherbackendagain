@@ -48,6 +48,44 @@ class Application(BaseModel):
     interview_date = models.DateTimeField(null=True, blank=True)
     onboarding_complete = models.BooleanField(default=False)
 
+    # Add these fields to the Application model
+    preferred_mos = models.ManyToManyField(
+        'units.MOS',
+        blank=True,
+        related_name='applications',
+        help_text="User's preferred MOS choices (up to 3)"
+    )
+    mos_priority_1 = models.ForeignKey(
+        'units.MOS',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='first_choice_applications'
+    )
+    mos_priority_2 = models.ForeignKey(
+        'units.MOS',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='second_choice_applications'
+    )
+    mos_priority_3 = models.ForeignKey(
+        'units.MOS',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='third_choice_applications'
+    )
+    meets_mos_requirements = models.BooleanField(
+        default=False,
+        help_text="Applicant meets requirements for desired MOS"
+    )
+    mos_waiver_requested = models.BooleanField(
+        default=False,
+        help_text="Applicant requesting waiver for MOS requirements"
+    )
+    mos_waiver_reason = models.TextField(blank=True, null=True)
+
     preferred_brigade = models.ForeignKey(
         'units.Unit',
         on_delete=models.SET_NULL,

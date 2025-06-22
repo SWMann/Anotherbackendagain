@@ -24,7 +24,7 @@ class RecruitmentStatusViewSet(viewsets.ViewSet):
         brigades = Unit.objects.filter(
             unit_type='Brigade',
             is_active=True
-        )
+        ).prefetch_related('authorized_mos', 'mos_training_capability')
         print(brigades)
         data = []
         for brigade in brigades:
@@ -47,6 +47,9 @@ class RecruitmentStatusViewSet(viewsets.ViewSet):
                 total=Sum(F('total_slots') - F('filled_slots') - F('reserved_slots'))
             )['total'] or 0
             print(available_slots)
+            authorized_mos = brigade.authorized_mos.filter(is_active=True)
+            training_mos = brigade.mos_training_capability.filter(is_active=True)
+
             data.append({
                 'id': str(brigade.id),  # Ensure UUID is serialized as string
                 'name': brigade.name,
@@ -59,6 +62,15 @@ class RecruitmentStatusViewSet(viewsets.ViewSet):
                 'is_aviation_only': brigade.is_aviation_only,
                 'emblem_url': brigade.emblem_url,
                 'recruitment_notes': brigade.recruitment_notes
+                'authorized_mos': [
+                    {'id': mos.id, 'code': mos.code, 'title': mos.title}
+                    for mos in authorized_mos
+                ],
+                'training_mos': [
+                    {'id': mos.id, 'code': mos.code, 'title': mos.title}
+                    for mos in training_mos
+                ],
+                'mos_categories': list(authorized_mos.values_list('category', flat=True).distinct())
             })
 
         return Response(data)

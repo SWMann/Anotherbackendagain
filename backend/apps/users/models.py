@@ -95,6 +95,36 @@ class User(AbstractBaseUser, PermissionsMixin, BaseModel):
 
     objects = UserManager()
 
+    # Add these fields to the User model
+    primary_mos = models.ForeignKey(
+        'units.MOS',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='primary_holders',
+        help_text="User's primary MOS"
+    )
+    secondary_mos = models.ManyToManyField(
+        'units.MOS',
+        blank=True,
+        related_name='secondary_holders',
+        help_text="Additional MOS qualifications"
+    )
+    mos_skill_level = models.IntegerField(
+        default=10,
+        choices=[
+            (10, 'Skill Level 10 - Entry'),
+            (20, 'Skill Level 20 - Journeyman'),
+            (30, 'Skill Level 30 - Senior'),
+            (40, 'Skill Level 40 - Master')
+        ]
+    )
+    mos_qualified_date = models.DateField(
+        null=True,
+        blank=True,
+        help_text="Date user qualified for primary MOS"
+    )
+
     def __str__(self):
         return self.username
 

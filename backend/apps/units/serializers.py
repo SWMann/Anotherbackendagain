@@ -313,9 +313,32 @@ class UnitDetailSerializer(serializers.ModelSerializer):
     personnel = serializers.SerializerMethodField()
     statistics = serializers.SerializerMethodField()
 
+    authorized_mos = serializers.SerializerMethodField()
+    mos_requirements = serializers.SerializerMethodField()
+
     class Meta:
         model = Unit
         fields = '__all__'
+
+    def get_authorized_mos(self, obj):
+        from .serializers_mos import MOSListSerializer
+        return MOSListSerializer(obj.authorized_mos.all(), many=True).data
+
+    def get_mos_requirements(self, obj):
+        return {
+            'authorized': [
+                {'id': mos.id, 'code': mos.code, 'title': mos.title}
+                for mos in obj.authorized_mos.all()
+            ],
+            'primary': [
+                {'id': mos.id, 'code': mos.code, 'title': mos.title}
+                for mos in obj.primary_mos.all()
+            ],
+            'can_train': [
+                {'id': mos.id, 'code': mos.code, 'title': mos.title}
+                for mos in obj.mos_training_capability.all()
+            ]
+        }
 
     def get_parent_unit_details(self, obj):
         if obj.parent_unit:
@@ -492,9 +515,24 @@ class PositionDetailSerializer(serializers.ModelSerializer):
     assignment_history = serializers.SerializerMethodField()
     effective_requirements = serializers.SerializerMethodField()
 
+    required_mos = serializers.SerializerMethodField()
+    preferred_mos = serializers.SerializerMethodField()
+
     class Meta:
         model = Position
         fields = '__all__'
+
+    def get_required_mos(self, obj):
+        return [
+            {'id': mos.id, 'code': mos.code, 'title': mos.title}
+            for mos in obj.required_mos.all()
+        ]
+
+    def get_preferred_mos(self, obj):
+        return [
+            {'id': mos.id, 'code': mos.code, 'title': mos.title}
+            for mos in obj.preferred_mos.all()
+        ]
 
     def get_parent_position_details(self, obj):
         if obj.parent_position:

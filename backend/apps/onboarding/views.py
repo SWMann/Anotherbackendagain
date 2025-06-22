@@ -14,6 +14,8 @@ from .serializers import (
 )
 from apps.users.views import IsAdminOrReadOnly
 from django.contrib.auth import get_user_model
+from apps.units.models import MOS
+
 
 User = get_user_model()
 
@@ -61,6 +63,57 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(application)
         return Response(serializer.data)
 
+    @action(detail=False, methods=['post'])
+    def check_eligibility(self, request):
+        """Check MOS eligibility for an application"""
+        mos_ids = request.data.get('mos_ids', [])
+
+        if not mos_ids:
+            return Response(
+                {'error': 'mos_ids list is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        results = {}
+
+        for mos_id in mos_ids:
+            try:
+                mos = MOS.objects.get(id=mos_id)
+
+                # Check basic eligibility
+                eligible = True
+                reasons = []
+
+                if not mos.is_entry_level:
+                    eligible = False
+                    reasons.append("MOS not available for entry-level")
+
+                if not mos.is_active:
+                    eligible = False
+                    reasons.append("MOS not currently active")
+
+                # Check unit availability
+                available_units = mos.authorized_units.filter(
+                    is_active=True,
+                    recruitment_status='open'
+                ).count()
+
+                results[mos_id] = {
+                    'mos_code': mos.code,
+                    'mos_title': mos.title,
+                    'eligible': eligible,
+                    'reasons': reasons,
+                    'available_units': available_units,
+                    'ait_weeks': mos.ait_weeks,
+                    'category': mos.category
+                }
+
+            except MOS.DoesNotExist:
+                results[mos_id] = {
+                    'error': 'MOS not found'
+                }
+
+        return Response(results)
 
 class UserOnboardingProgressViewSet(viewsets.ModelViewSet):
     queryset = UserOnboardingProgress.objects.all()

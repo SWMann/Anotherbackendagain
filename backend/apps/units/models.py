@@ -77,6 +77,38 @@ class Unit(BaseModel):
         help_text="Notes about recruitment status/requirements"
     )
 
+    # Add these fields to the Unit model
+    authorized_mos = models.ManyToManyField(
+        'MOS',
+        blank=True,
+        related_name='authorized_units',
+        help_text="MOS authorized for this unit"
+    )
+    primary_mos = models.ManyToManyField(
+        'MOS',
+        blank=True,
+        related_name='primary_units',
+        help_text="Primary MOS for this unit type"
+    )
+    mos_training_capability = models.ManyToManyField(
+        'MOS',
+        blank=True,
+        related_name='training_units',
+        help_text="MOS this unit can provide training for"
+    )
+
+    def get_mos_requirements(self):
+        """Get MOS requirements summary for this unit"""
+        return {
+            'authorized': self.authorized_mos.all(),
+            'primary': self.primary_mos.all(),
+            'can_train': self.mos_training_capability.all()
+        }
+
+    def can_accept_mos(self, mos):
+        """Check if unit can accept a specific MOS"""
+        return self.authorized_mos.filter(id=mos.id).exists()
+
     # Add fields for better hierarchy tracking
     unit_level = models.CharField(
         max_length=20,
@@ -320,6 +352,26 @@ class Position(BaseModel):
         default=False,
         help_text="Position requires aviation qualifications"
     )
+
+    # Add these fields to the Position model
+    required_mos = models.ManyToManyField(
+        'MOS',
+        blank=True,
+        related_name='positions',
+        help_text="MOS required for this position"
+    )
+    preferred_mos = models.ManyToManyField(
+        'MOS',
+        blank=True,
+        related_name='preferred_positions',
+        help_text="Preferred MOS for this position"
+    )
+
+    def can_be_filled_by_mos(self, mos):
+        """Check if position can be filled by a specific MOS"""
+        if not self.required_mos.exists():
+            return True  # No MOS requirement
+        return self.required_mos.filter(id=mos.id).exists()
 
     class Meta:
         ordering = ['unit', 'role__sort_order']
@@ -804,3 +856,109 @@ STANDARD_TEMPLATES = [
         ]
     },
 ]
+
+
+class MOS(BaseModel):
+    """Military Occupational Specialty"""
+    code = models.CharField(
+        max_length=10,
+        unique=True,
+        help_text="MOS code (e.g., 11B, 25B, 68W)"
+    )
+    title = models.CharField(
+        max_length=100,
+        help_text="MOS title (e.g., Infantryman, Information Technology Specialist)"
+    )
+    branch = models.ForeignKey(
+        'Branch',
+        on_delete=models.CASCADE,
+        related_name='mos_list'
+    )
+    category = models.CharField(max_length=50, choices=[
+        ('combat_arms', 'Combat Arms'),
+        ('combat_support', 'Combat Support'),
+        ('combat_service_support', 'Combat Service Support'),
+        ('special_operations', 'Special Operations'),
+        ('aviation', 'Aviation'),
+        ('medical', 'Medical'),
+        ('intelligence', 'Intelligence'),
+        ('signal', 'Signal/Communications'),
+        ('logistics', 'Logistics'),
+        ('maintenance', 'Maintenance'),
+        ('administration', 'Administration'),
+    ])
+    description = models.TextField(blank=True, null=True)
+
+    # Requirements
+    min_asvab_score = models.IntegerField(
+        default=0,
+        help_text="Minimum ASVAB score required"
+    )
+    security_clearance_required = models.CharField(
+        max_length=20,
+        choices=[
+            ('none', 'None'),
+            ('secret', 'Secret'),
+            ('top_secret', 'Top Secret'),
+            ('ts_sci', 'TS/SCI')
+        ],
+        default='none'
+    )
+
+    # Physical requirements
+    physical_demand_rating = models.CharField(
+        max_length=20,
+        choices=[
+            ('light', 'Light'),
+            ('moderate', 'Moderate'),
+            ('heavy', 'Heavy'),
+            ('very_heavy', 'Very Heavy')
+        ],
+        default='moderate'
+    )
+
+    # Training information
+    ait_weeks = models.IntegerField(
+        default=0,
+        help_text="Length of AIT (Advanced Individual Training) in weeks"
+    )
+    ait_location = models.CharField(max_length=100, blank=True, null=True)
+
+    # Career progression
+    skill_levels = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Skill level progression (10, 20, 30, 40)"
+    )
+    related_mos = models.ManyToManyField(
+        'self',
+        blank=True,
+        symmetrical=True,
+        help_text="Related MOS for career progression"
+    )
+
+    # Additional fields
+    is_active = models.BooleanField(default=True)
+    is_entry_level = models.BooleanField(
+        default=True,
+        help_text="Can be selected by new recruits"
+    )
+    requires_reclassification = models.BooleanField(
+        default=False,
+        help_text="Requires formal reclassification process"
+    )
+
+    # Certifications required
+    required_certifications = models.ManyToManyField(
+        'training.TrainingCertificate',
+        blank=True,
+        related_name='required_for_mos'
+    )
+
+    class Meta:
+        ordering = ['branch', 'code']
+        verbose_name = "Military Occupational Specialty"
+        verbose_name_plural = "Military Occupational Specialties"
+
+    def __str__(self):
+        return f"{self.code} - {self.title}"
