@@ -1,3 +1,4 @@
+# backend/apps/authentication/views.py
 import requests
 import json
 from django.conf import settings
@@ -14,8 +15,7 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenRefreshView
 from rest_framework_simplejwt.exceptions import TokenError, InvalidToken
-from drf_yasg.utils import swagger_auto_schema
-from drf_yasg import openapi
+# Removed drf_yasg imports
 
 from .serializers import (
     UserSerializer,
@@ -33,15 +33,6 @@ class DiscordOAuthURL(APIView):
     """
     permission_classes = [permissions.AllowAny]
 
-    @swagger_auto_schema(
-        operation_description="Get Discord OAuth URL",
-        responses={200: openapi.Response("Discord OAuth URL", schema=openapi.Schema(
-            type=openapi.TYPE_OBJECT,
-            properties={
-                'auth_url': openapi.Schema(type=openapi.TYPE_STRING, description="Discord OAuth URL")
-            }
-        ))}
-    )
     def get(self, request):
         client_id = settings.SOCIAL_AUTH_DISCORD_KEY
         redirect_uri = request.build_absolute_uri(reverse('discord_callback'))
@@ -77,7 +68,6 @@ class DiscordOAuthCallback(APIView):
         client_secret = settings.SOCIAL_AUTH_DISCORD_SECRET
 
         # Build the correct redirect URI
-        # This should match EXACTLY what you registered with Discord
         if hasattr(settings, 'FORCE_SCRIPT_NAME') and settings.FORCE_SCRIPT_NAME:
             redirect_uri = request.build_absolute_uri(
                 f"{settings.FORCE_SCRIPT_NAME}/api/auth/discord/callback/"
@@ -110,11 +100,87 @@ class DiscordOAuthCallback(APIView):
             token_response.raise_for_status()
             token_json = token_response.json()
 
-            # Rest of your code...
+            # Get user info from Discord
+            access_token = token_json['access_token']
+            user_response = requests.get(
+                'https://discord.com/api/users/@me',
+                headers={'Authorization': f'Bearer {access_token}'}
+            )
+            user_response.raise_for_status()
+            discord_user = user_response.json()
+
+            # Create or update user
+            user, created = User.objects.get_or_create(
+                discord_id=discord_user['id'],
+                defaults={
+                    'username': discord_user['username'],
+                    'email': discord_user.get('email', ''),
+                }
+            )
+
+            # Update user info if not created
+            if not created:
+                user.username = discord_user['username']
+                if discord_user.get('email'):
+                    user.email = discord_user['email']
+                user.last_login = timezone.now()
+
+            # Update avatar if present
+            if discord_user.get('avatar'):
+                user.avatar_url = f"https://cdn.discordapp.com/avatars/{discord_user['id']}/{discord_user['avatar']}.png"
+
+            user.save()
+
+            # Generate JWT tokens
+            refresh = RefreshToken.for_user(user)
+            jwt_access = str(refresh.access_token)
+            jwt_refresh = str(refresh)
+
+            # Redirect to frontend with tokens
+            frontend_url = settings.FRONTEND_URL or 'https://shark-app-wnufa.ondigitalocean.app'
+            return redirect(
+                f"{frontend_url}/auth/discord/callback"
+                f"?access_token={jwt_access}"
+                f"&refresh_token={jwt_refresh}"
+                f"&user_id={user.id}"
+            )
 
         except requests.exceptions.RequestException as e:
             print(f"Discord OAuth error: {e}")
             return redirect(f"{settings.FRONTEND_URL}/login?error=discord_api_error")
+        except Exception as e:
+            print(f"Unexpected error: {e}")
+            return redirect(f"{settings.FRONTEND_URL}/login?error=server_error")
+
+
+class DiscordOAuthTest(APIView):
+    """
+    Test endpoint to verify Discord OAuth configuration
+    """
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request):
+        # Build what the redirect URI should be
+        if hasattr(settings, 'FORCE_SCRIPT_NAME') and settings.FORCE_SCRIPT_NAME:
+            redirect_uri = request.build_absolute_uri(
+                f"{settings.FORCE_SCRIPT_NAME}/api/auth/discord/callback/"
+            )
+        else:
+            redirect_uri = request.build_absolute_uri(reverse('discord_callback'))
+
+        return Response({
+            'discord_client_id': settings.SOCIAL_AUTH_DISCORD_KEY,
+            'discord_client_secret_set': bool(settings.SOCIAL_AUTH_DISCORD_SECRET),
+            'frontend_url': getattr(settings, 'FRONTEND_URL', 'Not set'),
+            'force_script_name': getattr(settings, 'FORCE_SCRIPT_NAME', 'Not set'),
+            'calculated_redirect_uri': redirect_uri,
+            'expected_redirect_uri': 'https://shark-app-wnufa.ondigitalocean.app/anotherbackendagain-backend2/api/auth/discord/callback/',
+            'redirect_uris_match': redirect_uri == 'https://shark-app-wnufa.ondigitalocean.app/anotherbackendagain-backend2/api/auth/discord/callback/',
+            'scopes': settings.SOCIAL_AUTH_DISCORD_SCOPE,
+            'host': request.get_host(),
+            'scheme': request.scheme,
+            'full_path': request.get_full_path(),
+        })
 
 
 class TokenObtainPairView(APIView):
@@ -123,13 +189,6 @@ class TokenObtainPairView(APIView):
     """
     permission_classes = [permissions.AllowAny]
 
-    @swagger_auto_schema(
-        request_body=CustomTokenObtainPairSerializer,
-        responses={
-            200: TokenRefreshResponseSerializer,
-            401: "Invalid credentials"
-        }
-    )
     def post(self, request, *args, **kwargs):
         serializer = CustomTokenObtainPairSerializer(data=request.data)
 
@@ -146,12 +205,6 @@ class CustomTokenRefreshView(TokenRefreshView):
     Custom token refresh view that returns user data
     """
 
-    @swagger_auto_schema(
-        responses={
-            200: TokenRefreshResponseSerializer,
-            401: "Invalid token"
-        }
-    )
     def post(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
 
@@ -185,12 +238,6 @@ class TokenVerifyView(APIView):
     Verify token and return user data
     """
 
-    @swagger_auto_schema(
-        responses={
-            200: TokenVerifyResponseSerializer,
-            401: "Invalid token"
-        }
-    )
     def get(self, request):
         user = request.user
         return Response({'user': UserSerializer(user).data})
@@ -201,19 +248,6 @@ class LogoutView(APIView):
     Logout view
     """
 
-    @swagger_auto_schema(
-        request_body=openapi.Schema(
-            type=openapi.TYPE_OBJECT,
-            properties={
-                'refresh': openapi.Schema(type=openapi.TYPE_STRING, description="Refresh token")
-            },
-            required=['refresh']
-        ),
-        responses={
-            205: "Successfully logged out",
-            400: "Invalid token"
-        }
-    )
     def post(self, request):
         try:
             refresh_token = request.data.get('refresh')
