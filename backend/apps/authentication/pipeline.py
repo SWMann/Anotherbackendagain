@@ -1,7 +1,7 @@
 import requests
 from django.utils import timezone
 from django.conf import settings
-from users.models import User
+from apps.users.models import User  # Changed from 'users.models' to 'apps.users.models'
 
 
 def create_user(backend, user=None, response=None, *args, **kwargs):

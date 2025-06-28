@@ -75,7 +75,15 @@ class DiscordOAuthCallback(APIView):
         # Exchange code for token
         client_id = settings.SOCIAL_AUTH_DISCORD_KEY
         client_secret = settings.SOCIAL_AUTH_DISCORD_SECRET
-        redirect_uri = request.build_absolute_uri(reverse('discord_callback'))
+
+        # Build the correct redirect URI
+        # This should match EXACTLY what you registered with Discord
+        if hasattr(settings, 'FORCE_SCRIPT_NAME') and settings.FORCE_SCRIPT_NAME:
+            redirect_uri = request.build_absolute_uri(
+                f"{settings.FORCE_SCRIPT_NAME}/api/auth/discord/callback/"
+            )
+        else:
+            redirect_uri = request.build_absolute_uri(reverse('discord_callback'))
 
         token_url = "https://discord.com/api/oauth2/token"
         token_data = {
@@ -91,68 +99,18 @@ class DiscordOAuthCallback(APIView):
             'Content-Type': 'application/x-www-form-urlencoded'
         }
 
+        # Add debugging
+        print(f"Token exchange data: {token_data}")
+
         try:
             token_response = requests.post(token_url, data=token_data, headers=headers)
+            print(f"Token response status: {token_response.status_code}")
+            print(f"Token response: {token_response.text}")
+
             token_response.raise_for_status()
             token_json = token_response.json()
 
-            # Get user data from Discord
-            user_url = "https://discord.com/api/users/@me"
-            user_headers = {
-                'Authorization': f"Bearer {token_json['access_token']}"
-            }
-
-            user_response = requests.get(user_url, headers=user_headers)
-            user_response.raise_for_status()
-            user_data = user_response.json()
-
-            # Find or create user
-            discord_id = user_data.get('id')
-            email = user_data.get('email')
-            username = user_data.get('username')
-            avatar = user_data.get('avatar')
-
-            user = User.objects.filter(discord_id=discord_id).first()
-            is_new_user = False
-
-            if not user:
-                # Check by email
-                user = User.objects.filter(email=email).first()
-
-                if not user:
-                    # Create new user
-                    user = User.objects.create(
-                        discord_id=discord_id,
-                        email=email,
-                        username=username,
-                        is_active=True
-                    )
-                    is_new_user = True
-                else:
-                    # Update discord_id
-                    user.discord_id = discord_id
-
-            # Update user details
-            user.last_login = timezone.now()
-
-            if avatar:
-                avatar_url = f"https://cdn.discordapp.com/avatars/{discord_id}/{avatar}.png"
-                user.avatar_url = avatar_url
-
-            user.save()
-
-            # Generate JWT tokens
-            refresh = RefreshToken.for_user(user)
-
-            # Redirect to frontend with tokens
-            frontend_redirect_url = (
-                f"{settings.FRONTEND_URL}/auth/callback?"
-                f"refresh={str(refresh)}"
-                f"&access={str(refresh.access_token)}"
-                f"&is_new={is_new_user}"
-            )
-
-            return redirect(frontend_redirect_url)
+            # Rest of your code...
 
         except requests.exceptions.RequestException as e:
             print(f"Discord OAuth error: {e}")
