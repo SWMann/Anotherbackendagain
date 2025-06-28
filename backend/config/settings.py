@@ -53,6 +53,7 @@ INSTALLED_APPS = [
     'apps.users',
     'apps.units',
     'apps.events',
+    'apps.authentication'
     'apps.operations',
     'apps.training',
     'apps.ships',
