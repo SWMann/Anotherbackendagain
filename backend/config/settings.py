@@ -18,7 +18,7 @@ if not SECRET_KEY and 'RENDER' not in os.environ and 'DIGITALOCEAN' not in os.en
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get('DEBUG', 'False').lower() == 'true'
-
+FRONTEND_URL = os.environ.get('FRONTEND_URL')
 # Get the ALLOWED_HOSTS from the environment variable
 ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1:8000').split(',')
 
