@@ -48,7 +48,6 @@ class UserChangeForm(forms.ModelForm):
     def clean_password(self):
         return self.initial["password"]
 
-
 class UserAdmin(BaseUserAdmin):
     form = UserChangeForm
     add_form = UserCreationForm
@@ -72,6 +71,7 @@ class UserAdmin(BaseUserAdmin):
     search_fields = ('discord_id', 'username', 'email')
     ordering = ('discord_id',)
     filter_horizontal = ('groups', 'user_permissions',)
+    readonly_fields = ('join_date',)
 
 
 # Register the custom admin
