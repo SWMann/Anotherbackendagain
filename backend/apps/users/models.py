@@ -1,5 +1,4 @@
-
-
+# backend/apps/users/models.py
 
 import uuid
 from django.db import models
@@ -21,26 +20,25 @@ class UserManager(BaseUserManager):
 
         if password:
             user.set_password(password)
+        else:
+            user.set_unusable_password()
         user.save(using=self._db)
         return user
 
     def create_superuser(self, discord_id, username, email=None, password=None, **extra_fields):
         extra_fields.setdefault('is_staff', True)
         extra_fields.setdefault('is_admin', True)
+        extra_fields.setdefault('is_superuser', True)
 
         if extra_fields.get('is_staff') is not True:
             raise ValueError('Superuser must have is_staff=True.')
         if extra_fields.get('is_admin') is not True:
             raise ValueError('Superuser must have is_admin=True.')
+        if extra_fields.get('is_superuser') is not True:
+            raise ValueError('Superuser must have is_superuser=True.')
 
-        user = self.create_user(discord_id, username, email, password, **extra_fields)
+        return self.create_user(discord_id, username, email, password, **extra_fields)
 
-        # Ensure password is properly hashed for superuser
-        if password:
-            user.set_password(password)
-            user.save(using=self._db)
-
-        return user
 
 class User(AbstractBaseUser, PermissionsMixin, BaseModel):
     discord_id = models.CharField(max_length=100, unique=True)
@@ -128,10 +126,20 @@ class User(AbstractBaseUser, PermissionsMixin, BaseModel):
     def __str__(self):
         return self.username
 
-
+    @property
+    def is_superuser(self):
+        return self.is_admin
 
     def has_perm(self, perm, obj=None):
-        return self.is_admin
+        # Admin users have all permissions
+        if self.is_admin:
+            return True
+        # Otherwise, check specific permissions
+        return super().has_perm(perm, obj)
 
     def has_module_perms(self, app_label):
-        return self.is_admin
+        # Admin users have access to all apps
+        if self.is_admin:
+            return True
+        # Otherwise, check specific module permissions
+        return super().has_module_perms(app_label)
