@@ -61,7 +61,8 @@ class User(AbstractBaseUser, PermissionsMixin, BaseModel):
     timezone = models.CharField(max_length=50, blank=True, null=True)
     discord_notifications = models.BooleanField(default=True)
     email_notifications = models.BooleanField(default=True)
-    commission_stage = models.ForeignKey('onboarding.CommissionStage', on_delete=models.SET_NULL, null=True, blank=True, related_name='user_commissioning')
+    commission_stage = models.ForeignKey('onboarding.CommissionStage', on_delete=models.SET_NULL, null=True, blank=True,
+                                         related_name='user_commissioning')
     onboarding_status = models.CharField(
         max_length=50,
         choices=[
@@ -126,9 +127,14 @@ class User(AbstractBaseUser, PermissionsMixin, BaseModel):
     def __str__(self):
         return self.username
 
-    @property
-    def is_superuser(self):
-        return self.is_admin
+    # Remove the is_superuser property - let PermissionsMixin handle it
+    # The PermissionsMixin already provides is_superuser as a BooleanField
+
+    def save(self, *args, **kwargs):
+        # Sync is_superuser with is_admin if needed
+        if self.is_admin and not self.is_superuser:
+            self.is_superuser = True
+        super().save(*args, **kwargs)
 
     def has_perm(self, perm, obj=None):
         # Admin users have all permissions
