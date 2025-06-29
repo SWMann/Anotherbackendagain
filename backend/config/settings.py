@@ -64,10 +64,12 @@ INSTALLED_APPS = [
     'apps.vehicles',
 ]
 
+
+# Update MIDDLEWARE to ensure WhiteNoise is in the correct position
 MIDDLEWARE = [
-    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
-    'whitenoise.middleware.WhiteNoiseMiddleware',  # For static files
+    'whitenoise.middleware.WhiteNoiseMiddleware',  # Right after SecurityMiddleware
+    'corsheaders.middleware.CorsMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -75,6 +77,13 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
+
+# For development, you might also need to add this
+if DEBUG:
+    # This helps in development
+    STATICFILES_DIRS = [
+        os.path.join(BASE_DIR, 'static'),
+    ]
 
 # Security settings for production
 if not DEBUG:
@@ -159,11 +168,18 @@ USE_I18N = True
 USE_TZ = True
 
 # Static files (CSS, JavaScript, Images)
-STATIC_URL = '/staticfiles/'
+# Update the STATIC_URL to match your FORCE_SCRIPT_NAME
+STATIC_URL = '/anotherbackendagain-backend2/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
-# Configure staticfiles for Digital Ocean App Platform
+# Configure WhiteNoise - REMOVE the WHITENOISE_STATIC_PREFIX line
+# WhiteNoise will use STATIC_URL automatically
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+
+# If you're using FORCE_SCRIPT_NAME, ensure it's consistent
+FORCE_SCRIPT_NAME = '/anotherbackendagain-backend2'
+
+
 
 # Media files
 # Default media storage
@@ -192,7 +208,6 @@ REST_FRAMEWORK = {
     ),
 
 }
-FORCE_SCRIPT_NAME = '/anotherbackendagain-backend2'
 
 # JWT settings
 SIMPLE_JWT = {

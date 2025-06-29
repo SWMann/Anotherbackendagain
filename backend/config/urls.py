@@ -3,6 +3,8 @@ from django.urls import path, include
 from django.conf import settings 
 from django.conf.urls.static import static 
 from rest_framework_simplejwt.views import TokenRefreshView
+from django.contrib.staticfiles.urls import staticfiles_urlpatterns
+
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -39,6 +41,10 @@ urlpatterns = [
     path('api/roles/', include('apps.units.urls_roles')),  # Can remove this duplicate
     path('api/positions/', include('apps.units.urls_positions')),  # Can remove this duplicate
 ]
-
-if settings.DEBUG: 
-    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT) 
+# Add static files handling
+if settings.DEBUG:
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+    urlpatterns += staticfiles_urlpatterns()
+else:
+    # In production, WhiteNoise will handle static files
+    pass

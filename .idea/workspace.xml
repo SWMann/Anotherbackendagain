@@ -5,15 +5,9 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="a12fe88c-768d-46b2-ba7d-8358f406cde6" name="Changes" comment="ORBAT Changes">
-      <change afterPath="$PROJECT_DIR$/backend/apps/users/admin.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/backend/apps/users/management/__init__.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/backend/apps/users/management/commands/__init__.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/backend/apps/users/management/commands/create_admin.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/DjangoRestAPIWebstie.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/DjangoRestAPIWebstie.iml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/apps/users/models.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/apps/users/models.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/scripts/entrypoint.sh" beforeDir="false" afterPath="$PROJECT_DIR$/backend/scripts/entrypoint.sh" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/config/settings.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/config/settings.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/config/urls.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/config/urls.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -101,15 +95,7 @@
       <workItem from="1749501510181" duration="1715000" />
       <workItem from="1749663716059" duration="3020000" />
       <workItem from="1749828011636" duration="2027000" />
-      <workItem from="1749980041173" duration="16459000" />
-    </task>
-    <task id="LOCAL-00005" summary="First Commit">
-      <option name="closed" value="true" />
-      <created>1747055718074</created>
-      <option name="number" value="00005" />
-      <option name="presentableId" value="LOCAL-00005" />
-      <option name="project" value="LOCAL" />
-      <updated>1747055718074</updated>
+      <workItem from="1749980041173" duration="17030000" />
     </task>
     <task id="LOCAL-00006" summary="First Commit">
       <option name="closed" value="true" />
@@ -495,7 +481,15 @@
       <option name="project" value="LOCAL" />
       <updated>1751181637127</updated>
     </task>
-    <option name="localTasksCounter" value="54" />
+    <task id="LOCAL-00054" summary="ORBAT Changes">
+      <option name="closed" value="true" />
+      <created>1751182888397</created>
+      <option name="number" value="00054" />
+      <option name="presentableId" value="LOCAL-00054" />
+      <option name="project" value="LOCAL" />
+      <updated>1751182888397</updated>
+    </task>
+    <option name="localTasksCounter" value="55" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
