@@ -5,11 +5,9 @@ from django.conf.urls.static import static
 from rest_framework_simplejwt.views import TokenRefreshView
 from django.contrib.staticfiles.urls import staticfiles_urlpatterns
 
-from backend.apps.core.views import debug_static_config
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('api/debug/static-config/', debug_static_config),  # Add this line
     path('api/auth/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('api/auth/', include('apps.authentication.urls')),  # Changed from 'apps.users.urls'
     path('api/users/', include('apps.users.urls_users')),
