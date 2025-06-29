@@ -1,4 +1,4 @@
-# In your Django project: backend/apps/users/management/commands/create_bot_token.py
+# backend/apps/users/management/commands/create_bot_token.py
 from django.core.management.base import BaseCommand
 from django.contrib.auth import get_user_model
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -17,7 +17,14 @@ class Command(BaseCommand):
                 'username': 'Discord Bot',
                 'email': 'bot@5id.mil',
                 'is_staff': True,
-                'is_active': True
+                'is_admin': False,
+                'is_superuser': False,  # Add this field
+                'is_active': True,
+                'duty_status': 'active',  # Add any other required fields
+                'onboarding_status': 'Active',
+                'recruit_status': False,
+                'officer_candidate': False,
+                'warrant_officer_candidate': False
             }
         )
 
