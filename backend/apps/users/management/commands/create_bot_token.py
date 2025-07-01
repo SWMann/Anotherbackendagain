@@ -10,7 +10,12 @@ class Command(BaseCommand):
     help = 'Creates authentication tokens for the Discord bot'
 
     def handle(self, *args, **options):
-        # Create or get bot user
+        # First, let's check what fields are available
+        self.stdout.write("Available User fields:")
+        for field in User._meta.get_fields():
+            self.stdout.write(f"  - {field.name}")
+
+        # Create or get bot user with only the fields that exist
         bot_user, created = User.objects.get_or_create(
             discord_id='bot_5id',
             defaults={
@@ -18,9 +23,9 @@ class Command(BaseCommand):
                 'email': 'bot@5id.mil',
                 'is_staff': True,
                 'is_admin': False,
-                'is_superuser': False,  # Add this field
                 'is_active': True,
-                'duty_status': 'active',  # Add any other required fields
+
+                # Only include fields that actually exist in your model
                 'onboarding_status': 'Active',
                 'recruit_status': False,
                 'officer_candidate': False,
@@ -29,6 +34,9 @@ class Command(BaseCommand):
         )
 
         if created:
+            # Set unusable password
+            bot_user.set_unusable_password()
+            bot_user.save()
             self.stdout.write(self.style.SUCCESS('Created new bot user'))
         else:
             self.stdout.write(self.style.SUCCESS('Using existing bot user'))
