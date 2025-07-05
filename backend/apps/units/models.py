@@ -1,4 +1,5 @@
 # backend/apps/units/models.py
+from django.core.validators import FileExtensionValidator
 from django.db import models
 from django.core.exceptions import ValidationError
 from apps.core.models import BaseModel
@@ -16,13 +17,26 @@ class Branch(BaseModel):
         return self.name
 
 
+# Update the Rank model class:
 class Rank(BaseModel):
     name = models.CharField(max_length=100)
     abbreviation = models.CharField(max_length=20)
     branch = models.ForeignKey(Branch, on_delete=models.CASCADE, related_name='ranks')
     tier = models.IntegerField()
     description = models.TextField(blank=True, null=True)
+
+    # Keep the URL field for backwards compatibility
     insignia_image_url = models.URLField(blank=True, null=True)
+
+    # Add the new image upload field
+    insignia_image = models.ImageField(
+        upload_to='ranks/insignias/',
+        blank=True,
+        null=True,
+        validators=[FileExtensionValidator(allowed_extensions=['jpg', 'jpeg', 'png', 'gif', 'svg'])],
+        help_text='Upload rank insignia image (JPG, PNG, GIF, or SVG)'
+    )
+
     min_time_in_service = models.IntegerField(default=0, help_text="Days required in service")
     min_time_in_grade = models.IntegerField(default=0, help_text="Days required in current grade")
     color_code = models.CharField(max_length=20, blank=True, null=True)
@@ -35,6 +49,19 @@ class Rank(BaseModel):
 
     def __str__(self):
         return f"{self.branch.abbreviation} {self.abbreviation}"
+
+    @property
+    def insignia_display_url(self):
+        """Return the image URL, preferring uploaded image over URL field"""
+        if self.insignia_image:
+            return self.insignia_image.url
+        return self.insignia_image_url
+
+    def save(self, *args, **kwargs):
+        # If an image is uploaded, clear the URL field
+        if self.insignia_image:
+            self.insignia_image_url = None
+        super().save(*args, **kwargs)
 
 
 class Unit(BaseModel):
