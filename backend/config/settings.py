@@ -183,7 +183,7 @@ FORCE_SCRIPT_NAME = '/anotherbackendagain-backend2'
 
 # Media files
 # Default media storage
-MEDIA_URL = '/media/'
+MEDIA_URL = 'anotherbackendagain-backend2/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
 # Default primary key field type
