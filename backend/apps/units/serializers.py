@@ -8,6 +8,8 @@ from django.db.models import Sum, F
 from django.contrib.auth import get_user_model
 from django.utils import timezone
 
+from ...config import settings
+
 User = get_user_model()
 
 
@@ -20,10 +22,9 @@ class BranchSerializer(serializers.ModelSerializer):
 
 # backend/apps/units/serializers.py
 # Update the RankSerializer class:
-
 class RankSerializer(serializers.ModelSerializer):
     branch_name = serializers.ReadOnlyField(source='branch.name')
-    insignia_display_url = serializers.ReadOnlyField()  # Use the property we created
+    insignia_display_url = serializers.SerializerMethodField()
     insignia_image = serializers.ImageField(
         max_length=None,
         use_url=True,
@@ -42,6 +43,30 @@ class RankSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['created_at', 'updated_at', 'insignia_display_url']
 
+    def get_insignia_display_url(self, obj):
+        """Return the best available image URL with proper handling for URL prefix"""
+        if obj.insignia_image:
+            # Get the request from context if available
+            request = self.context.get('request')
+
+            # If we have a file, get its URL
+            if hasattr(obj.insignia_image, 'url'):
+                url = obj.insignia_image.url
+
+                # If using Spaces, the URL is already complete
+                if getattr(settings, 'USE_SPACES', False):
+                    return url
+
+                # For local storage, ensure we have the full URL
+                if request and not url.startswith('http'):
+                    # Build absolute URL
+                    return request.build_absolute_uri(url)
+
+                return url
+
+        # Fall back to the URL field if no image
+        return obj.insignia_image_url
+
     def to_representation(self, instance):
         """Customize the output to always show the best available image URL"""
         data = super().to_representation(instance)
@@ -51,41 +76,9 @@ class RankSerializer(serializers.ModelSerializer):
             data.pop('insignia_image', None)
 
         # Ensure we always have the display URL
-        data['insignia_display_url'] = instance.insignia_display_url
+        data['insignia_display_url'] = self.get_insignia_display_url(instance)
 
         return data
-
-
-# Create a separate serializer for rank updates that handles file uploads
-class RankCreateUpdateSerializer(serializers.ModelSerializer):
-    insignia_image = serializers.ImageField(
-        max_length=None,
-        use_url=True,
-        required=False,
-        allow_null=True
-    )
-
-    class Meta:
-        model = Rank
-        fields = [
-            'name', 'abbreviation', 'branch', 'tier', 'description',
-            'insignia_image_url', 'insignia_image', 'min_time_in_service',
-            'min_time_in_grade', 'color_code', 'is_officer', 'is_enlisted',
-            'is_warrant'
-        ]
-
-    def validate_insignia_image(self, value):
-        """Validate image file size and dimensions"""
-        if value:
-            # Limit file size to 5MB
-            if value.size > 5 * 1024 * 1024:
-                raise serializers.ValidationError("Image file too large. Size should not exceed 5MB.")
-        return value
-
-    def update(self, instance, validated_data):
-        """Handle image upload during update"""
-        # If a new image is uploaded, the model will clear the URL field
-        return super().update(instance, validated_data)
 
 
 # Role Serializers

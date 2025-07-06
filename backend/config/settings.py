@@ -19,6 +19,10 @@ if not SECRET_KEY and 'RENDER' not in os.environ and 'DIGITALOCEAN' not in os.en
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get('DEBUG', 'False').lower() == 'true'
 FRONTEND_URL = os.environ.get('FRONTEND_URL')
+
+# URL prefix configuration for deployment
+FORCE_SCRIPT_NAME = os.environ.get('FORCE_SCRIPT_NAME', '/anotherbackendagain-backend2')
+
 # Get the ALLOWED_HOSTS from the environment variable
 ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1:8000').split(',')
 
@@ -64,7 +68,6 @@ INSTALLED_APPS = [
     'apps.vehicles',
 ]
 
-
 # Update MIDDLEWARE to ensure WhiteNoise is in the correct position
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
@@ -90,15 +93,16 @@ if not DEBUG:
     SECURE_HSTS_SECONDS = 31536000  # 1 year
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
     SECURE_HSTS_PRELOAD = True
-    SECURE_SSL_REDIRECT = True
+    SECURE_SSL_REDIRECT = False  # Keep this False since we're behind a proxy
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
     SECURE_BROWSER_XSS_FILTER = True
     SECURE_CONTENT_TYPE_NOSNIFF = True
     X_FRAME_OPTIONS = 'DENY'
-
-
-SECURE_SSL_REDIRECT = False
+    # Add proxy headers for Digital Ocean
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    USE_X_FORWARDED_HOST = True
+    USE_X_FORWARDED_PORT = True
 
 ROOT_URLCONF = 'config.urls'
 SESSION_ENGINE = 'django.contrib.sessions.backends.db'
@@ -120,20 +124,23 @@ TEMPLATES = [
     },
 ]
 
+# Static files configuration with URL prefix
+if FORCE_SCRIPT_NAME:
+    STATIC_URL = f'{FORCE_SCRIPT_NAME}/static/'
+else:
+    STATIC_URL = '/static/'
 
-# Static files configuration
-STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
-# For development, add static directories if they exist
-if DEBUG:
-    STATICFILES_DIRS = []
-    static_dir = os.path.join(BASE_DIR, 'static')
-    if os.path.exists(static_dir):
-        STATICFILES_DIRS.append(static_dir)
+# WhiteNoise configuration for URL prefix
+WHITENOISE_STATIC_PREFIX = '/static/'
 
-# Media files configuration
-MEDIA_URL = '/media/'
+# Media files configuration with URL prefix
+if FORCE_SCRIPT_NAME:
+    MEDIA_URL = f'{FORCE_SCRIPT_NAME}/media/'
+else:
+    MEDIA_URL = '/media/'
+
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
 WSGI_APPLICATION = 'config.wsgi.application'
@@ -183,16 +190,11 @@ TIME_ZONE = 'UTC'
 USE_I18N = True
 USE_TZ = True
 
-
-
-
-
 # Default primary key field type
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # REST Framework settings
 REST_FRAMEWORK = {
-    'DEFAULT_SCHEMA_URL': '/anotherbackendagain-backend2/api/',
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',
         'rest_framework.authentication.SessionAuthentication',
@@ -207,7 +209,6 @@ REST_FRAMEWORK = {
         'rest_framework.filters.SearchFilter',
         'rest_framework.filters.OrderingFilter',
     ),
-
 }
 
 # JWT settings
@@ -236,9 +237,6 @@ AUTHENTICATION_BACKENDS = (
     'django.contrib.auth.backends.ModelBackend',
     'social_core.backends.discord.DiscordOAuth2',
 )
-WHITENOISE_STATIC_PREFIX = '/anotherbackendagain-backend2/static/'
-
-
 
 SOCIAL_AUTH_PIPELINE = (
     'social_core.pipeline.social_auth.social_details',
@@ -284,8 +282,10 @@ if USE_SPACES:
     STATICFILES_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
     DEFAULT_FILE_STORAGE = 'config.storage_backends.MediaStorage'
 
-    STATIC_URL = f'https://{AWS_STORAGE_BUCKET_NAME}.{AWS_S3_REGION_NAME}.digitaloceanspaces.com/{AWS_LOCATION}/'
-    MEDIA_URL = f'https://{AWS_STORAGE_BUCKET_NAME}.{AWS_S3_REGION_NAME}.digitaloceanspaces.com/media/'
+    # When using Spaces, media files are served directly from the CDN
+    # So we don't include the FORCE_SCRIPT_NAME prefix
+    STATIC_URL = f'https://{AWS_S3_CUSTOM_DOMAIN}/{AWS_LOCATION}/'
+    MEDIA_URL = f'https://{AWS_S3_CUSTOM_DOMAIN}/media/'
 
 # Logging configuration
 LOGGING = {
@@ -319,4 +319,3 @@ LOGGING = {
         },
     },
 }
-

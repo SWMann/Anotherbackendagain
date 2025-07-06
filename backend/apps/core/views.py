@@ -7,6 +7,7 @@ from django.http import JsonResponse
 from django.conf import settings
 import os
 from pathlib import Path
+from rest_framework import viewsets
 
 
 def debug_static_config(request):
@@ -57,3 +58,20 @@ def debug_static_config(request):
             'scheme': request.scheme,
         }
     }, json_dumps_params={'indent': 2})
+
+
+
+
+class MediaContextMixin:
+    """
+    Mixin to ensure serializers always get request context
+    for proper media URL generation.
+    """
+
+    def get_serializer_context(self):
+        """
+        Add request to serializer context.
+        """
+        context = super().get_serializer_context()
+        context['request'] = self.request
+        return context

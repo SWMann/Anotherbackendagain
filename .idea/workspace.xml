@@ -5,9 +5,13 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="a12fe88c-768d-46b2-ba7d-8358f406cde6" name="Changes" comment="ORBAT Changes">
+      <change afterPath="$PROJECT_DIR$/backend/apps/core/utils.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/apps/core/serializers.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/apps/core/serializers.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/apps/core/views.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/apps/core/views.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/apps/units/serializers.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/apps/units/serializers.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/apps/units/views.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/apps/units/views.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/backend/config/settings.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/config/settings.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/config/urls.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/config/urls.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -25,18 +29,18 @@
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
   </component>
-  <component name="GitHubPullRequestSearchHistory"><![CDATA[{
-  "lastFilter": {
-    "state": "OPEN",
-    "assignee": "SWMann"
+  <component name="GitHubPullRequestSearchHistory">{
+  &quot;lastFilter&quot;: {
+    &quot;state&quot;: &quot;OPEN&quot;,
+    &quot;assignee&quot;: &quot;SWMann&quot;
   }
-}]]></component>
-  <component name="GithubPullRequestsUISettings"><![CDATA[{
-  "selectedUrlAndAccountId": {
-    "url": "https://github.com/SWMann/Anotherbackendagain",
-    "accountId": "43917a86-6d8b-4def-adf3-89dde1685d0c"
+}</component>
+  <component name="GithubPullRequestsUISettings">{
+  &quot;selectedUrlAndAccountId&quot;: {
+    &quot;url&quot;: &quot;https://github.com/SWMann/Anotherbackendagain&quot;,
+    &quot;accountId&quot;: &quot;43917a86-6d8b-4def-adf3-89dde1685d0c&quot;
   }
-}]]></component>
+}</component>
   <component name="ProjectColorInfo">{
   &quot;associatedIndex&quot;: 2
 }</component>
@@ -45,23 +49,23 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent"><![CDATA[{
-  "keyToString": {
-    "ASKED_ADD_EXTERNAL_FILES": "true",
-    "RunOnceActivity.ShowReadmeOnStart": "true",
-    "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager": "true",
-    "RunOnceActivity.git.unshallow": "true",
-    "git-widget-placeholder": "master",
-    "last_opened_file_path": "C:/Users/schae/PycharmProjects/Test/DjangoRestAPIWebstie",
-    "node.js.detected.package.eslint": "true",
-    "node.js.detected.package.tslint": "true",
-    "node.js.selected.package.eslint": "(autodetect)",
-    "node.js.selected.package.tslint": "(autodetect)",
-    "nodejs_package_manager_path": "npm",
-    "settings.editor.selected.configurable": "configurable.group.appearance",
-    "vue.rearranger.settings.migration": "true"
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;ASKED_ADD_EXTERNAL_FILES&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;master&quot;,
+    &quot;last_opened_file_path&quot;: &quot;C:/Users/schae/PycharmProjects/Test/DjangoRestAPIWebstie&quot;,
+    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
+    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
+    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
+    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
+    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
+    &quot;settings.editor.selected.configurable&quot;: &quot;configurable.group.appearance&quot;,
+    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
   }
-}]]></component>
+}</component>
   <component name="RecentsManager">
     <key name="MoveFile.RECENT_KEYS">
       <recent name="C:\Users\schae\PycharmProjects\Test\DjangoRestAPIWebstie\backend\apps" />
@@ -95,79 +99,8 @@
       <workItem from="1749501510181" duration="1715000" />
       <workItem from="1749663716059" duration="3020000" />
       <workItem from="1749828011636" duration="2027000" />
-      <workItem from="1749980041173" duration="17030000" />
-    </task>
-    <task id="LOCAL-00006" summary="First Commit">
-      <option name="closed" value="true" />
-      <created>1747055877414</created>
-      <option name="number" value="00006" />
-      <option name="presentableId" value="LOCAL-00006" />
-      <option name="project" value="LOCAL" />
-      <updated>1747055877414</updated>
-    </task>
-    <task id="LOCAL-00007" summary="First Commit">
-      <option name="closed" value="true" />
-      <created>1747056274288</created>
-      <option name="number" value="00007" />
-      <option name="presentableId" value="LOCAL-00007" />
-      <option name="project" value="LOCAL" />
-      <updated>1747056274288</updated>
-    </task>
-    <task id="LOCAL-00008" summary="First Commit">
-      <option name="closed" value="true" />
-      <created>1747057335873</created>
-      <option name="number" value="00008" />
-      <option name="presentableId" value="LOCAL-00008" />
-      <option name="project" value="LOCAL" />
-      <updated>1747057335873</updated>
-    </task>
-    <task id="LOCAL-00009" summary="First Commit">
-      <option name="closed" value="true" />
-      <created>1747057576977</created>
-      <option name="number" value="00009" />
-      <option name="presentableId" value="LOCAL-00009" />
-      <option name="project" value="LOCAL" />
-      <updated>1747057576977</updated>
-    </task>
-    <task id="LOCAL-00010" summary="First Commit">
-      <option name="closed" value="true" />
-      <created>1747058089896</created>
-      <option name="number" value="00010" />
-      <option name="presentableId" value="LOCAL-00010" />
-      <option name="project" value="LOCAL" />
-      <updated>1747058089896</updated>
-    </task>
-    <task id="LOCAL-00011" summary="First Commit">
-      <option name="closed" value="true" />
-      <created>1747058281437</created>
-      <option name="number" value="00011" />
-      <option name="presentableId" value="LOCAL-00011" />
-      <option name="project" value="LOCAL" />
-      <updated>1747058281437</updated>
-    </task>
-    <task id="LOCAL-00012" summary="First Commit">
-      <option name="closed" value="true" />
-      <created>1747058940624</created>
-      <option name="number" value="00012" />
-      <option name="presentableId" value="LOCAL-00012" />
-      <option name="project" value="LOCAL" />
-      <updated>1747058940624</updated>
-    </task>
-    <task id="LOCAL-00013" summary="First Commit">
-      <option name="closed" value="true" />
-      <created>1747059865585</created>
-      <option name="number" value="00013" />
-      <option name="presentableId" value="LOCAL-00013" />
-      <option name="project" value="LOCAL" />
-      <updated>1747059865585</updated>
-    </task>
-    <task id="LOCAL-00014" summary="First Commit">
-      <option name="closed" value="true" />
-      <created>1747060681649</created>
-      <option name="number" value="00014" />
-      <option name="presentableId" value="LOCAL-00014" />
-      <option name="project" value="LOCAL" />
-      <updated>1747060681649</updated>
+      <workItem from="1749980041173" duration="19776000" />
+      <workItem from="1751350577910" duration="8590000" />
     </task>
     <task id="LOCAL-00015" summary="First Commit">
       <option name="closed" value="true" />
@@ -489,7 +422,79 @@
       <option name="project" value="LOCAL" />
       <updated>1751182888397</updated>
     </task>
-    <option name="localTasksCounter" value="55" />
+    <task id="LOCAL-00055" summary="ORBAT Changes">
+      <option name="closed" value="true" />
+      <created>1751183461156</created>
+      <option name="number" value="00055" />
+      <option name="presentableId" value="LOCAL-00055" />
+      <option name="project" value="LOCAL" />
+      <updated>1751183461156</updated>
+    </task>
+    <task id="LOCAL-00056" summary="ORBAT Changes">
+      <option name="closed" value="true" />
+      <created>1751183875717</created>
+      <option name="number" value="00056" />
+      <option name="presentableId" value="LOCAL-00056" />
+      <option name="project" value="LOCAL" />
+      <updated>1751183875718</updated>
+    </task>
+    <task id="LOCAL-00057" summary="ORBAT Changes">
+      <option name="closed" value="true" />
+      <created>1751186837883</created>
+      <option name="number" value="00057" />
+      <option name="presentableId" value="LOCAL-00057" />
+      <option name="project" value="LOCAL" />
+      <updated>1751186837884</updated>
+    </task>
+    <task id="LOCAL-00058" summary="ORBAT Changes">
+      <option name="closed" value="true" />
+      <created>1751741914717</created>
+      <option name="number" value="00058" />
+      <option name="presentableId" value="LOCAL-00058" />
+      <option name="project" value="LOCAL" />
+      <updated>1751741914717</updated>
+    </task>
+    <task id="LOCAL-00059" summary="ORBAT Changes">
+      <option name="closed" value="true" />
+      <created>1751784325222</created>
+      <option name="number" value="00059" />
+      <option name="presentableId" value="LOCAL-00059" />
+      <option name="project" value="LOCAL" />
+      <updated>1751784325222</updated>
+    </task>
+    <task id="LOCAL-00060" summary="ORBAT Changes">
+      <option name="closed" value="true" />
+      <created>1751788172852</created>
+      <option name="number" value="00060" />
+      <option name="presentableId" value="LOCAL-00060" />
+      <option name="project" value="LOCAL" />
+      <updated>1751788172852</updated>
+    </task>
+    <task id="LOCAL-00061" summary="ORBAT Changes">
+      <option name="closed" value="true" />
+      <created>1751788807668</created>
+      <option name="number" value="00061" />
+      <option name="presentableId" value="LOCAL-00061" />
+      <option name="project" value="LOCAL" />
+      <updated>1751788807668</updated>
+    </task>
+    <task id="LOCAL-00062" summary="ORBAT Changes">
+      <option name="closed" value="true" />
+      <created>1751789425592</created>
+      <option name="number" value="00062" />
+      <option name="presentableId" value="LOCAL-00062" />
+      <option name="project" value="LOCAL" />
+      <updated>1751789425592</updated>
+    </task>
+    <task id="LOCAL-00063" summary="ORBAT Changes">
+      <option name="closed" value="true" />
+      <created>1751790460846</created>
+      <option name="number" value="00063" />
+      <option name="presentableId" value="LOCAL-00063" />
+      <option name="project" value="LOCAL" />
+      <updated>1751790460847</updated>
+    </task>
+    <option name="localTasksCounter" value="64" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -497,6 +502,17 @@
   </component>
   <component name="UnknownFeatures">
     <option featureType="com.intellij.fileTypeFactory" implementationName=".env" />
+  </component>
+  <component name="Vcs.Log.Tabs.Properties">
+    <option name="TAB_STATES">
+      <map>
+        <entry key="MAIN">
+          <value>
+            <State />
+          </value>
+        </entry>
+      </map>
+    </option>
   </component>
   <component name="VcsManagerConfiguration">
     <MESSAGE value="First Commit" />
