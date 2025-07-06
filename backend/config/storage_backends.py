@@ -13,11 +13,8 @@ class StaticStorage(S3Boto3Storage):
     querystring_auth = False
 
     def __init__(self, *args, **kwargs):
-        kwargs['custom_domain'] = getattr(
-            settings,
-            'SPACES_CDN_DOMAIN',
-            f'{settings.AWS_STORAGE_BUCKET_NAME}.{settings.AWS_S3_REGION_NAME}.digitaloceanspaces.com'
-        )
+        # Simplified to use AWS_S3_CUSTOM_DOMAIN from settings
+        kwargs['custom_domain'] = getattr(settings, 'AWS_S3_CUSTOM_DOMAIN', None)
         super().__init__(*args, **kwargs)
 
 
