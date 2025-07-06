@@ -61,20 +61,128 @@ class RankViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'], permission_classes=[permissions.IsAdminUser])
     def upload_insignia(self, request, pk=None):
         """Upload insignia image for a specific rank"""
-        rank = self.get_object()
+        print("\n" + "=" * 50)
+        print("UPLOAD_INSIGNIA CALLED")
+        print("=" * 50)
 
-        if 'insignia_image' not in request.FILES:
+        try:
+            # Debug request info
+            print(f"Rank ID: {pk}")
+            print(f"User: {request.user}")
+            print(f"Is Admin: {request.user.is_admin}")
+            print(f"Request Method: {request.method}")
+            print(f"Content Type: {request.content_type}")
+            print(f"FILES: {request.FILES}")
+            print(f"FILES keys: {list(request.FILES.keys())}")
+            print(f"POST data: {request.POST}")
+
+            # Debug storage backend
+            print(f"\nStorage Backend: {default_storage.__class__.__name__}")
+            print(f"Storage Backend Module: {default_storage.__class__.__module__}")
+            print(f"USE_SPACES: {getattr(settings, 'USE_SPACES', 'Not set')}")
+            print(f"DEFAULT_FILE_STORAGE: {getattr(settings, 'DEFAULT_FILE_STORAGE', 'Not set')}")
+
+            rank = self.get_object()
+            print(f"\nRank found: {rank.name} ({rank.id})")
+            print(f"Current insignia_image: {rank.insignia_image}")
+            print(f"Current insignia_image_url: {rank.insignia_image_url}")
+
+            if 'insignia_image' not in request.FILES:
+                print("ERROR: No insignia_image in FILES")
+                return Response(
+                    {'error': 'No image file provided'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            # Get the file
+            file_obj = request.FILES['insignia_image']
+            print(f"\nFile received: {file_obj.name}")
+            print(f"File size: {file_obj.size} bytes")
+            print(f"Content type: {file_obj.content_type}")
+
+            # Debug file object
+            print(f"File class: {file_obj.__class__.__name__}")
+            print(f"File readable: {hasattr(file_obj, 'read')}")
+
+            # Try manual save to storage first
+            print("\nTesting direct storage save...")
+            try:
+                test_path = f"test/manual_{file_obj.name}"
+                saved_path = default_storage.save(test_path, file_obj)
+                saved_url = default_storage.url(saved_path)
+                print(f"Manual save successful!")
+                print(f"Saved to: {saved_path}")
+                print(f"URL: {saved_url}")
+
+                # Clean up test file
+                default_storage.delete(saved_path)
+                print("Test file deleted")
+
+                # Reset file pointer
+                file_obj.seek(0)
+            except Exception as e:
+                print(f"Manual save failed: {e}")
+                traceback.print_exc()
+
+            # Save the uploaded image to the rank
+            print(f"\nSaving to rank.insignia_image field...")
+            old_image = rank.insignia_image
+            print(f"Old image value: {old_image}")
+
+            try:
+                # Try direct assignment
+                rank.insignia_image = file_obj
+                print(f"Assigned file to field")
+                print(f"Field value after assignment: {rank.insignia_image}")
+
+                # Save the model
+                rank.save()
+                print(f"Model saved")
+
+                # Refresh from database
+                rank.refresh_from_db()
+                print(f"After refresh - insignia_image: {rank.insignia_image}")
+                print(
+                    f"After refresh - insignia_image.name: {rank.insignia_image.name if rank.insignia_image else 'None'}")
+
+                # Check if file exists in storage
+                if rank.insignia_image:
+                    exists = default_storage.exists(rank.insignia_image.name)
+                    print(f"File exists in storage: {exists}")
+                    if exists:
+                        size = default_storage.size(rank.insignia_image.name)
+                        print(f"File size in storage: {size}")
+
+            except Exception as e:
+                print(f"Error during save: {e}")
+                traceback.print_exc()
+
+                # Restore old image
+                rank.insignia_image = old_image
+                rank.save()
+
+                return Response(
+                    {'error': f'Failed to save image: {str(e)}'},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
+
+            # Serialize and return
+            print(f"\nPreparing response...")
+            serializer = RankSerializer(rank)
+            response_data = serializer.data
+
+            print(f"Response data: {response_data}")
+            print("=" * 50 + "\n")
+
+            return Response(response_data)
+
+        except Exception as e:
+            print(f"Unexpected error: {e}")
+            traceback.print_exc()
             return Response(
-                {'error': 'No image file provided'},
-                status=status.HTTP_400_BAD_REQUEST
+                {'error': f'Unexpected error: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
-
-        # Save the uploaded image
-        rank.insignia_image = request.FILES['insignia_image']
-        rank.save()
-
-        serializer = RankSerializer(rank)
-        return Response(serializer.data)
 
     @action(detail=True, methods=['delete'], permission_classes=[permissions.IsAdminUser])
     def delete_insignia(self, request, pk=None):
