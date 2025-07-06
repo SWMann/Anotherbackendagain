@@ -8,7 +8,7 @@ from django.db.models import Sum, F
 from django.contrib.auth import get_user_model
 from django.utils import timezone
 
-from ...config import settings
+from django.conf import settings
 
 User = get_user_model()
 
