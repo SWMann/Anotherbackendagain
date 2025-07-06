@@ -120,6 +120,22 @@ TEMPLATES = [
     },
 ]
 
+
+# Static files configuration
+STATIC_URL = '/static/'
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+
+# For development, add static directories if they exist
+if DEBUG:
+    STATICFILES_DIRS = []
+    static_dir = os.path.join(BASE_DIR, 'static')
+    if os.path.exists(static_dir):
+        STATICFILES_DIRS.append(static_dir)
+
+# Media files configuration
+MEDIA_URL = '/media/'
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+
 WSGI_APPLICATION = 'config.wsgi.application'
 
 # Database
