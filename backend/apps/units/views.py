@@ -10,6 +10,8 @@ from .serializers import (
 )
 from apps.users.views import IsAdminOrReadOnly
 from django.contrib.auth import get_user_model
+from django.core.files.storage import default_storage  # Add this import
+import traceback  # Add this for better error handling
 
 User = get_user_model()
 

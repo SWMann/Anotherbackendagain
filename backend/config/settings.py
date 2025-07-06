@@ -167,24 +167,9 @@ TIME_ZONE = 'UTC'
 USE_I18N = True
 USE_TZ = True
 
-# Static files (CSS, JavaScript, Images)
-# Update the STATIC_URL to match your FORCE_SCRIPT_NAME
-STATIC_URL = '/anotherbackendagain-backend2/static/'
-STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
-
-# Configure WhiteNoise - REMOVE the WHITENOISE_STATIC_PREFIX line
-# WhiteNoise will use STATIC_URL automatically
-STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
-
-# If you're using FORCE_SCRIPT_NAME, ensure it's consistent
-FORCE_SCRIPT_NAME = '/anotherbackendagain-backend2'
 
 
 
-# Media files
-# Default media storage
-MEDIA_URL = '/media/'
-MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
 # Default primary key field type
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
