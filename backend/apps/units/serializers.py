@@ -19,6 +19,35 @@ class BranchSerializer(serializers.ModelSerializer):
         model = Branch
         fields = '__all__'
 
+class RankCreateUpdateSerializer(serializers.ModelSerializer):
+    insignia_image = serializers.ImageField(
+        max_length=None,
+        use_url=True,
+        required=False,
+        allow_null=True
+    )
+
+    class Meta:
+        model = Rank
+        fields = [
+            'name', 'abbreviation', 'branch', 'tier', 'description',
+            'insignia_image_url', 'insignia_image', 'min_time_in_service',
+            'min_time_in_grade', 'color_code', 'is_officer', 'is_enlisted',
+            'is_warrant'
+        ]
+
+    def validate_insignia_image(self, value):
+        """Validate image file size and dimensions"""
+        if value:
+            # Limit file size to 5MB
+            if value.size > 5 * 1024 * 1024:
+                raise serializers.ValidationError("Image file too large. Size should not exceed 5MB.")
+        return value
+
+    def update(self, instance, validated_data):
+        """Handle image upload during update"""
+        # If a new image is uploaded, the model will clear the URL field
+        return super().update(instance, validated_data)
 
 # backend/apps/units/serializers.py
 # Update the RankSerializer class:
