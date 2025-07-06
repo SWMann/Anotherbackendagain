@@ -29,6 +29,7 @@ if DO_APP_URL:
     ALLOWED_HOSTS.append(f'www.{DO_APP_URL}')
 
 # Determine if we're running on Digital Ocean
+ON_DIGITAL_OCEAN = os.environ.get('DIGITAL_OCEAN', 'False').lower() == 'true'
 
 # Application definition
 INSTALLED_APPS = [
@@ -178,55 +179,12 @@ STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 # If you're using FORCE_SCRIPT_NAME, ensure it's consistent
 FORCE_SCRIPT_NAME = '/anotherbackendagain-backend2'
 
-# Digital Ocean Spaces (S3-compatible) settings
-USE_SPACES = os.environ.get('USE_SPACES', 'False').lower() == 'true'
 
-if USE_SPACES:
-    # DigitalOcean Spaces credentials
-    AWS_ACCESS_KEY_ID = os.environ.get('SPACES_ACCESS_KEY_ID')
-    AWS_SECRET_ACCESS_KEY = os.environ.get('SPACES_SECRET_ACCESS_KEY')
-    AWS_STORAGE_BUCKET_NAME = os.environ.get('SPACES_BUCKET_NAME')
-    AWS_S3_REGION_NAME = os.environ.get('SPACES_REGION_NAME', 'nyc3')
-    AWS_S3_ENDPOINT_URL = f'https://{AWS_S3_REGION_NAME}.digitaloceanspaces.com'
 
-    # Optional: Use CDN domain if you have one configured
-    SPACES_CDN_DOMAIN = os.environ.get('SPACES_CDN_DOMAIN', None)
-    if SPACES_CDN_DOMAIN:
-        AWS_S3_CUSTOM_DOMAIN = SPACES_CDN_DOMAIN
-    else:
-        AWS_S3_CUSTOM_DOMAIN = f'{AWS_STORAGE_BUCKET_NAME}.{AWS_S3_REGION_NAME}.digitaloceanspaces.com'
-
-    # File parameters
-    AWS_S3_OBJECT_PARAMETERS = {
-        'CacheControl': 'max-age=86400',  # 1 day cache
-        'ACL': 'public-read',
-    }
-    AWS_DEFAULT_ACL = 'public-read'
-    AWS_QUERYSTRING_AUTH = False  # Don't add auth to URLs
-    AWS_S3_FILE_OVERWRITE = False  # Don't overwrite files with same name
-
-    # Storage backends
-    STATICFILES_STORAGE = 'config.storage_backends.StaticStorage'
-    DEFAULT_FILE_STORAGE = 'config.storage_backends.MediaStorage'
-
-    # URLs - Note: no FORCE_SCRIPT_NAME needed since Spaces serves directly
-    STATIC_URL = f'https://{AWS_S3_CUSTOM_DOMAIN}/static/'
-    MEDIA_URL = f'https://{AWS_S3_CUSTOM_DOMAIN}/media/'
-
-    # For django-storages to work with DigitalOcean
-    AWS_S3_SIGNATURE_VERSION = 's3v4'
-    AWS_S3_REGION_NAME = AWS_S3_REGION_NAME  # Important for signature
-
-else:
-    # Local file storage (development or non-Spaces production)
-    MEDIA_URL = '/anotherbackendagain-backend2/media/'
-    MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
-
-    # Static files are still handled by WhiteNoise when not using Spaces
-    STATIC_URL = '/anotherbackendagain-backend2/static/'
-    STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
-    STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
-
+# Media files
+# Default media storage
+MEDIA_URL = '/media/'
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
 # Default primary key field type
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
@@ -298,6 +256,28 @@ SOCIAL_AUTH_PIPELINE = (
 CORS_ALLOW_ALL_ORIGINS = DEBUG
 CORS_ALLOWED_ORIGINS = os.environ.get('CORS_ALLOWED_ORIGINS', "http://localhost:3000, https://discord.com").split(',')
 
+# Digital Ocean Spaces (S3-compatible) settings
+USE_SPACES = os.environ.get('USE_SPACES', 'False').lower() == 'true'
+
+if USE_SPACES:
+    # Digital Ocean Spaces settings
+    AWS_ACCESS_KEY_ID = os.environ.get('SPACES_ACCESS_KEY_ID')
+    AWS_SECRET_ACCESS_KEY = os.environ.get('SPACES_SECRET_ACCESS_KEY')
+    AWS_STORAGE_BUCKET_NAME = os.environ.get('SPACES_BUCKET_NAME')
+    AWS_S3_REGION_NAME = os.environ.get('SPACES_REGION_NAME', 'nyc3')
+    AWS_S3_ENDPOINT_URL = f'https://{AWS_S3_REGION_NAME}.digitaloceanspaces.com'
+    AWS_S3_OBJECT_PARAMETERS = {
+        'CacheControl': 'max-age=86400',
+    }
+    AWS_DEFAULT_ACL = 'public-read'
+    AWS_LOCATION = 'static'
+    AWS_QUERYSTRING_AUTH = False
+
+    STATICFILES_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
+    DEFAULT_FILE_STORAGE = 'config.storage_backends.MediaStorage'
+
+    STATIC_URL = f'https://{AWS_STORAGE_BUCKET_NAME}.{AWS_S3_REGION_NAME}.digitaloceanspaces.com/{AWS_LOCATION}/'
+    MEDIA_URL = f'https://{AWS_STORAGE_BUCKET_NAME}.{AWS_S3_REGION_NAME}.digitaloceanspaces.com/media/'
 
 # Logging configuration
 LOGGING = {

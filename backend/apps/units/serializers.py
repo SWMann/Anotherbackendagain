@@ -18,12 +18,74 @@ class BranchSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 
+# backend/apps/units/serializers.py
+# Update the RankSerializer class:
+
 class RankSerializer(serializers.ModelSerializer):
     branch_name = serializers.ReadOnlyField(source='branch.name')
+    insignia_display_url = serializers.ReadOnlyField()  # Use the property we created
+    insignia_image = serializers.ImageField(
+        max_length=None,
+        use_url=True,
+        required=False,
+        allow_null=True
+    )
 
     class Meta:
         model = Rank
-        fields = '__all__'
+        fields = [
+            'id', 'name', 'abbreviation', 'branch', 'branch_name', 'tier',
+            'description', 'insignia_image_url', 'insignia_image',
+            'insignia_display_url', 'min_time_in_service', 'min_time_in_grade',
+            'color_code', 'is_officer', 'is_enlisted', 'is_warrant',
+            'created_at', 'updated_at'
+        ]
+        read_only_fields = ['created_at', 'updated_at', 'insignia_display_url']
+
+    def to_representation(self, instance):
+        """Customize the output to always show the best available image URL"""
+        data = super().to_representation(instance)
+
+        # Remove null image fields for cleaner output
+        if data.get('insignia_image') is None:
+            data.pop('insignia_image', None)
+
+        # Ensure we always have the display URL
+        data['insignia_display_url'] = instance.insignia_display_url
+
+        return data
+
+
+# Create a separate serializer for rank updates that handles file uploads
+class RankCreateUpdateSerializer(serializers.ModelSerializer):
+    insignia_image = serializers.ImageField(
+        max_length=None,
+        use_url=True,
+        required=False,
+        allow_null=True
+    )
+
+    class Meta:
+        model = Rank
+        fields = [
+            'name', 'abbreviation', 'branch', 'tier', 'description',
+            'insignia_image_url', 'insignia_image', 'min_time_in_service',
+            'min_time_in_grade', 'color_code', 'is_officer', 'is_enlisted',
+            'is_warrant'
+        ]
+
+    def validate_insignia_image(self, value):
+        """Validate image file size and dimensions"""
+        if value:
+            # Limit file size to 5MB
+            if value.size > 5 * 1024 * 1024:
+                raise serializers.ValidationError("Image file too large. Size should not exceed 5MB.")
+        return value
+
+    def update(self, instance, validated_data):
+        """Handle image upload during update"""
+        # If a new image is uploaded, the model will clear the URL field
+        return super().update(instance, validated_data)
 
 
 # Role Serializers

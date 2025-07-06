@@ -34,12 +34,65 @@ class BranchViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)
 
 
+# backend/apps/units/views.py
+# Update the RankViewSet class:
+
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
+from rest_framework.decorators import action
+from rest_framework.response import Response
+from rest_framework import status
+
+
 class RankViewSet(viewsets.ModelViewSet):
     pagination_class = None
     queryset = Rank.objects.all().order_by('branch', 'tier')
-    serializer_class = RankSerializer
     permission_classes = [IsAdminOrReadOnly]
     filterset_fields = ['branch', 'is_officer', 'is_enlisted', 'is_warrant']
+    # Add parsers to handle file uploads
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
+
+    def get_serializer_class(self):
+        """Use different serializers for different actions"""
+        if self.action in ['create', 'update', 'partial_update']:
+            from .serializers import RankCreateUpdateSerializer
+            return RankCreateUpdateSerializer
+        return RankSerializer
+
+    @action(detail=True, methods=['post'], permission_classes=[permissions.IsAdminUser])
+    def upload_insignia(self, request, pk=None):
+        """Upload insignia image for a specific rank"""
+        rank = self.get_object()
+
+        if 'insignia_image' not in request.FILES:
+            return Response(
+                {'error': 'No image file provided'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Save the uploaded image
+        rank.insignia_image = request.FILES['insignia_image']
+        rank.save()
+
+        serializer = RankSerializer(rank)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['delete'], permission_classes=[permissions.IsAdminUser])
+    def delete_insignia(self, request, pk=None):
+        """Delete the insignia image for a specific rank"""
+        rank = self.get_object()
+
+        if rank.insignia_image:
+            # Delete the file
+            rank.insignia_image.delete(save=False)
+            rank.insignia_image = None
+            rank.save()
+
+            return Response({'message': 'Insignia image deleted successfully'})
+
+        return Response(
+            {'error': 'No insignia image to delete'},
+            status=status.HTTP_404_NOT_FOUND
+        )
 
     @action(detail=False, methods=['get'], permission_classes=[permissions.IsAuthenticated])
     def progression(self, request):
@@ -59,7 +112,6 @@ class RankViewSet(viewsets.ModelViewSet):
             }
 
         return Response(result)
-
 
 class UnitViewSet(viewsets.ModelViewSet):
     queryset = Unit.objects.all()
