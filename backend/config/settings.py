@@ -255,6 +255,8 @@ SOCIAL_AUTH_PIPELINE = (
 CORS_ALLOW_ALL_ORIGINS = DEBUG
 CORS_ALLOWED_ORIGINS = os.environ.get('CORS_ALLOWED_ORIGINS', "http://localhost:3000, https://discord.com").split(',')
 
+# Add this to your settings.py file, replacing the existing storage configuration
+
 # Digital Ocean Spaces (S3-compatible) settings
 USE_SPACES = os.environ.get('USE_SPACES', 'False').lower() == 'true'
 
@@ -279,13 +281,45 @@ if USE_SPACES:
     else:
         AWS_S3_CUSTOM_DOMAIN = f'{AWS_STORAGE_BUCKET_NAME}.{AWS_S3_REGION_NAME}.digitaloceanspaces.com'
 
-    STATICFILES_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
+    # Django 4.2+ uses STORAGES dictionary
+    STORAGES = {
+        "default": {
+            "BACKEND": "config.storage_backends.MediaStorage",
+        },
+        "staticfiles": {
+            "BACKEND": "storages.backends.s3boto3.S3Boto3Storage",
+        },
+    }
+
+    # Keep these for backwards compatibility with Django < 4.2
     DEFAULT_FILE_STORAGE = 'config.storage_backends.MediaStorage'
+    STATICFILES_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
 
     # When using Spaces, media files are served directly from the CDN
-    # So we don't include the FORCE_SCRIPT_NAME prefix
     STATIC_URL = f'https://{AWS_S3_CUSTOM_DOMAIN}/{AWS_LOCATION}/'
     MEDIA_URL = f'https://{AWS_S3_CUSTOM_DOMAIN}/media/'
+else:
+    # Local file storage
+    STORAGES = {
+        "default": {
+            "BACKEND": "django.core.files.storage.FileSystemStorage",
+        },
+        "staticfiles": {
+            "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
+        },
+    }
+
+    # Media files configuration with URL prefix
+    if FORCE_SCRIPT_NAME:
+        MEDIA_URL = f'{FORCE_SCRIPT_NAME}/media/'
+    else:
+        MEDIA_URL = '/media/'
+
+    MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+
+# Remove these duplicate lines at the bottom of your settings.py file:
+# DEFAULT_FILE_STORAGE = 'config.storage_backends.MediaStorage'
+# STATICFILES_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
 
 # Logging configuration
 LOGGING = {
@@ -320,5 +354,3 @@ LOGGING = {
     },
 }
 
-DEFAULT_FILE_STORAGE = 'config.storage_backends.MediaStorage'
-STATICFILES_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
