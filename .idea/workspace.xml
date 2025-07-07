@@ -5,13 +5,10 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="a12fe88c-768d-46b2-ba7d-8358f406cde6" name="Changes" comment="ORBAT Changes">
-      <change afterPath="$PROJECT_DIR$/backend/apps/core/utils.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/apps/standards/management/__init__.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/apps/standards/management/commands/__init__.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/apps/standards/management/commands/generate_command_control_sops.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/apps/core/serializers.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/apps/core/serializers.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/apps/core/views.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/apps/core/views.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/apps/units/serializers.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/apps/units/serializers.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/apps/units/views.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/apps/units/views.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/config/settings.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/config/settings.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -100,55 +97,7 @@
       <workItem from="1749663716059" duration="3020000" />
       <workItem from="1749828011636" duration="2027000" />
       <workItem from="1749980041173" duration="19776000" />
-      <workItem from="1751350577910" duration="8590000" />
-    </task>
-    <task id="LOCAL-00015" summary="First Commit">
-      <option name="closed" value="true" />
-      <created>1747061405218</created>
-      <option name="number" value="00015" />
-      <option name="presentableId" value="LOCAL-00015" />
-      <option name="project" value="LOCAL" />
-      <updated>1747061405218</updated>
-    </task>
-    <task id="LOCAL-00016" summary="First Commit">
-      <option name="closed" value="true" />
-      <created>1747062806212</created>
-      <option name="number" value="00016" />
-      <option name="presentableId" value="LOCAL-00016" />
-      <option name="project" value="LOCAL" />
-      <updated>1747062806212</updated>
-    </task>
-    <task id="LOCAL-00017" summary="First Commit">
-      <option name="closed" value="true" />
-      <created>1747063115790</created>
-      <option name="number" value="00017" />
-      <option name="presentableId" value="LOCAL-00017" />
-      <option name="project" value="LOCAL" />
-      <updated>1747063115790</updated>
-    </task>
-    <task id="LOCAL-00018" summary="First Commit">
-      <option name="closed" value="true" />
-      <created>1747064346313</created>
-      <option name="number" value="00018" />
-      <option name="presentableId" value="LOCAL-00018" />
-      <option name="project" value="LOCAL" />
-      <updated>1747064346313</updated>
-    </task>
-    <task id="LOCAL-00019" summary="First Commit">
-      <option name="closed" value="true" />
-      <created>1747065117430</created>
-      <option name="number" value="00019" />
-      <option name="presentableId" value="LOCAL-00019" />
-      <option name="project" value="LOCAL" />
-      <updated>1747065117430</updated>
-    </task>
-    <task id="LOCAL-00020" summary="First Commit">
-      <option name="closed" value="true" />
-      <created>1747065578330</created>
-      <option name="number" value="00020" />
-      <option name="presentableId" value="LOCAL-00020" />
-      <option name="project" value="LOCAL" />
-      <updated>1747065578330</updated>
+      <workItem from="1751350577910" duration="14094000" />
     </task>
     <task id="LOCAL-00021" summary="First Commit">
       <option name="closed" value="true" />
@@ -494,7 +443,55 @@
       <option name="project" value="LOCAL" />
       <updated>1751790460847</updated>
     </task>
-    <option name="localTasksCounter" value="64" />
+    <task id="LOCAL-00064" summary="ORBAT Changes">
+      <option name="closed" value="true" />
+      <created>1751800725348</created>
+      <option name="number" value="00064" />
+      <option name="presentableId" value="LOCAL-00064" />
+      <option name="project" value="LOCAL" />
+      <updated>1751800725348</updated>
+    </task>
+    <task id="LOCAL-00065" summary="ORBAT Changes">
+      <option name="closed" value="true" />
+      <created>1751801174944</created>
+      <option name="number" value="00065" />
+      <option name="presentableId" value="LOCAL-00065" />
+      <option name="project" value="LOCAL" />
+      <updated>1751801174945</updated>
+    </task>
+    <task id="LOCAL-00066" summary="ORBAT Changes">
+      <option name="closed" value="true" />
+      <created>1751801575253</created>
+      <option name="number" value="00066" />
+      <option name="presentableId" value="LOCAL-00066" />
+      <option name="project" value="LOCAL" />
+      <updated>1751801575253</updated>
+    </task>
+    <task id="LOCAL-00067" summary="ORBAT Changes">
+      <option name="closed" value="true" />
+      <created>1751802484311</created>
+      <option name="number" value="00067" />
+      <option name="presentableId" value="LOCAL-00067" />
+      <option name="project" value="LOCAL" />
+      <updated>1751802484312</updated>
+    </task>
+    <task id="LOCAL-00068" summary="ORBAT Changes">
+      <option name="closed" value="true" />
+      <created>1751805237573</created>
+      <option name="number" value="00068" />
+      <option name="presentableId" value="LOCAL-00068" />
+      <option name="project" value="LOCAL" />
+      <updated>1751805237573</updated>
+    </task>
+    <task id="LOCAL-00069" summary="ORBAT Changes">
+      <option name="closed" value="true" />
+      <created>1751806301001</created>
+      <option name="number" value="00069" />
+      <option name="presentableId" value="LOCAL-00069" />
+      <option name="project" value="LOCAL" />
+      <updated>1751806301002</updated>
+    </task>
+    <option name="localTasksCounter" value="70" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
