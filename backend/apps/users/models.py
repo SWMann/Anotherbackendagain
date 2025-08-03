@@ -1,6 +1,8 @@
 # backend/apps/users/models.py
 
 import uuid
+from datetime import timezone
+
 from django.db import models
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 from apps.core.models import BaseModel
@@ -130,10 +132,107 @@ class User(AbstractBaseUser, PermissionsMixin, BaseModel):
     # Remove the is_superuser property - let PermissionsMixin handle it
     # The PermissionsMixin already provides is_superuser as a BooleanField
 
+    @property
+    def days_in_service(self):
+        """Calculate total days in service"""
+        if self.join_date:
+            return (timezone.now() - self.join_date).days
+        return 0
+
+    @property
+    def days_in_current_rank(self):
+        """Calculate days at current rank"""
+        if not self.current_rank:
+            return 0
+
+        # Import here to avoid circular imports
+        from apps.units.models_promotion import UserRankHistory
+
+        current_rank_history = UserRankHistory.objects.filter(
+            user=self,
+            rank=self.current_rank,
+            date_ended__isnull=True
+        ).order_by('-date_assigned').first()
+
+        if current_rank_history:
+            return (timezone.now() - current_rank_history.date_assigned).days
+
+        # Fallback to join date if no history
+        return self.days_in_service
+
+    @property
+    def days_in_current_unit(self):
+        """Calculate days in current unit"""
+        if self.unit_assignment_date:
+            return (timezone.now() - self.unit_assignment_date).days
+        return 0
+
+    @property
+    def total_deployments(self):
+        """Count total combat deployments"""
+        from apps.events.models import EventAttendance
+
+        return EventAttendance.objects.filter(
+            user=self,
+            event__event_type__in=['Fleet_Battle', 'Ground_Assault', 'Station_Defense'],
+            status='Attending',
+            check_in_time__isnull=False
+        ).count()
+
+    @property
+    def total_leadership_days(self):
+        """Calculate total days in leadership positions"""
+        from apps.units.models import UserPosition
+
+        leadership_positions = UserPosition.objects.filter(
+            user=self,
+            position__role__is_nco_role=True
+        ) | UserPosition.objects.filter(
+            user=self,
+            position__role__is_command_role=True
+        )
+
+        total_days = 0
+        for position in leadership_positions.distinct():
+            start = position.assignment_date
+            end = position.end_date or timezone.now()
+            total_days += (end - start).days
+
+        return total_days
+
     def save(self, *args, **kwargs):
+        """Override save to track rank changes"""
+        # Check if rank is changing
+        if self.pk and self.current_rank:
+            try:
+                old_user = User.objects.get(pk=self.pk)
+                if old_user.current_rank != self.current_rank:
+                    # Import here to avoid circular imports
+                    from apps.units.models_promotion import UserRankHistory
+
+                    # End previous rank history if exists
+                    UserRankHistory.objects.filter(
+                        user=self,
+                        rank=old_user.current_rank,
+                        date_ended__isnull=True
+                    ).update(date_ended=timezone.now())
+
+                    # Create new rank history entry if not exists
+                    UserRankHistory.objects.get_or_create(
+                        user=self,
+                        rank=self.current_rank,
+                        date_assigned=timezone.now(),
+                        defaults={
+                            'notes': 'Rank updated via user profile'
+                        }
+                    )
+            except User.DoesNotExist:
+                pass
+
         # Sync is_superuser with is_admin if needed
         if self.is_admin and not self.is_superuser:
             self.is_superuser = True
+
         super().save(*args, **kwargs)
 
     def has_perm(self, perm, obj=None):
