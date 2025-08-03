@@ -4,6 +4,8 @@ from .models import CommendationType, Commendation, CommendationDevice, Commenda
 from django.utils import timezone
 from apps.core.serializers import MediaURLMixin
 
+from apps.units.models import Branch
+
 
 class CommendationTypeSerializer(MediaURLMixin, serializers.ModelSerializer):
     allowed_branches = serializers.SerializerMethodField()
@@ -147,7 +149,7 @@ class AwardCommendationSerializer(serializers.Serializer):
 class CreateCommendationTypeSerializer(serializers.ModelSerializer):
     allowed_branches = serializers.PrimaryKeyRelatedField(
         many=True,
-        queryset=None,  # Will be set in __init__
+        queryset=Branch.objects.all(),  # Set directly instead of None
         required=False
     )
 
