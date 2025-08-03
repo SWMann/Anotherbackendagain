@@ -3,7 +3,6 @@ from rest_framework import serializers
 from .models import CommendationType, Commendation, CommendationDevice, CommendationDeviceAwarded
 from django.utils import timezone
 from apps.core.serializers import MediaURLMixin
-
 from apps.units.models import Branch
 
 
@@ -87,9 +86,9 @@ class AwardCommendationSerializer(serializers.Serializer):
     citation = serializers.CharField()
     short_citation = serializers.CharField(max_length=500)
     awarded_date = serializers.DateTimeField(required=False)
-    related_event_id = serializers.UUIDField(required=False, allow_null=True)
-    related_unit_id = serializers.UUIDField(required=False, allow_null=True)
-    order_number = serializers.CharField(max_length=50, required=False, allow_blank=True)
+    related_event_id = serializers.UUIDField(required=False, allow_null=True, default=None)
+    related_unit_id = serializers.UUIDField(required=False, allow_null=True, default=None)
+    order_number = serializers.CharField(max_length=50, required=False, allow_blank=True, allow_null=True, default='')
     is_public = serializers.BooleanField(default=True)
     supporting_documents = serializers.JSONField(required=False, default=list)
     devices = serializers.ListField(
@@ -143,13 +142,21 @@ class AwardCommendationSerializer(serializers.Serializer):
         if 'awarded_date' not in data:
             data['awarded_date'] = timezone.now()
 
+        # Clean up None values for optional fields
+        if 'related_event_id' in data and data['related_event_id'] == '':
+            data['related_event_id'] = None
+        if 'related_unit_id' in data and data['related_unit_id'] == '':
+            data['related_unit_id'] = None
+        if 'order_number' in data and data['order_number'] == '':
+            data['order_number'] = ''
+
         return data
 
 
 class CreateCommendationTypeSerializer(serializers.ModelSerializer):
     allowed_branches = serializers.PrimaryKeyRelatedField(
         many=True,
-        queryset=Branch.objects.all(),  # Set directly instead of None
+        queryset=Branch.objects.all(),
         required=False
     )
 
@@ -162,12 +169,6 @@ class CreateCommendationTypeSerializer(serializers.ModelSerializer):
             'auto_award_criteria', 'is_active', 'multiple_awards_allowed',
             'max_awards_per_user', 'allowed_branches'
         ]
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        # Set the queryset for allowed_branches
-        from apps.units.models import Branch
-        self.fields['allowed_branches'].queryset = Branch.objects.all()
 
     def create(self, validated_data):
         allowed_branches = validated_data.pop('allowed_branches', [])
