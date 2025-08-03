@@ -196,6 +196,7 @@ class UserProfileDetailSerializer(serializers.ModelSerializer):
                 'abbreviation': obj.current_rank.abbreviation,
                 'tier': obj.current_rank.tier,
                 'insignia_image_url': obj.current_rank.insignia_image_url,
+                'insignia_image': obj.current_rank.insignia_image,
                 'description': obj.current_rank.description,
                 'color_code': obj.current_rank.color_code,
                 'is_officer': obj.current_rank.is_officer,
