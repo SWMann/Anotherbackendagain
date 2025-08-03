@@ -66,6 +66,7 @@ INSTALLED_APPS = [
     'apps.onboarding',
     'apps.announcements',
     'apps.vehicles',
+    'apps.commendations',
 ]
 
 # Update MIDDLEWARE to ensure WhiteNoise is in the correct position
