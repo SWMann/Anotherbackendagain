@@ -64,7 +64,7 @@ class UserViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['get'], permission_classes=[permissions.IsAuthenticated])
     def positions(self, request, pk=None):
         user = self.get_object()
-        positions = user.userposition_set.all()
+        positions = user.position_assignments.all()  # CORRECT - uses the related_name
         from apps.units.serializers import UserPositionSerializer
         serializer = UserPositionSerializer(positions, many=True)
         return Response(serializer.data)
