@@ -12,6 +12,9 @@ from .serializers import (
     UserPositionSerializer, UserPositionCreateSerializer
 )
 from apps.users.views import IsAdminOrReadOnly
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class RecruitmentStatusViewSet(viewsets.ViewSet):
@@ -27,42 +30,113 @@ class RecruitmentStatusViewSet(viewsets.ViewSet):
         Get all recruitment units (Squadrons for Navy, Companies for Army/Marines)
         Keeping the method name for backwards compatibility
         """
+        print("\n=== BRIGADES ENDPOINT DEBUG ===")
+
+        # First, let's see what unit levels exist in the database
+        all_unit_levels = Unit.objects.filter(is_active=True).values_list('unit_level', flat=True).distinct()
+        print(f"All active unit levels in database: {list(all_unit_levels)}")
+
+        # Count units by level
+        for level in all_unit_levels:
+            count = Unit.objects.filter(unit_level=level, is_active=True).count()
+            print(f"  - {level}: {count} units")
+
         # Get Squadron level units for Navy/Aviation and Company level for Ground Forces
-        units = Unit.objects.filter(
+        units_query = Unit.objects.filter(
             Q(unit_level='navy_squadron') |
             Q(unit_level='aviation_squadron') |
             Q(unit_level='ground_company'),
             is_active=True
-        ).prefetch_related('authorized_mos', 'mos_training_capability').select_related('branch')
+        )
+
+        print(f"\nFiltering for: navy_squadron, aviation_squadron, ground_company")
+        print(f"Found {units_query.count()} units matching criteria")
+
+        # If no units found with exact match, try partial match
+        if units_query.count() == 0:
+            print("\nNo exact matches found. Trying partial matches...")
+
+            # Try finding units that might be squadrons or companies
+            squadron_units = Unit.objects.filter(
+                Q(unit_level__icontains='squadron') | Q(name__icontains='squadron'),
+                is_active=True
+            )
+            company_units = Unit.objects.filter(
+                Q(unit_level__icontains='company') | Q(name__icontains='company'),
+                is_active=True
+            )
+
+            print(f"Units with 'squadron' in level or name: {squadron_units.count()}")
+            for unit in squadron_units[:5]:  # Show first 5
+                print(
+                    f"  - {unit.name} (level: {unit.unit_level}, branch: {unit.branch.name if unit.branch else 'None'})")
+
+            print(f"\nUnits with 'company' in level or name: {company_units.count()}")
+            for unit in company_units[:5]:  # Show first 5
+                print(
+                    f"  - {unit.name} (level: {unit.unit_level}, branch: {unit.branch.name if unit.branch else 'None'})")
+
+            # Use the broader query for now
+            units_query = squadron_units | company_units
+            print(f"\nUsing broader query, found {units_query.count()} units")
+
+        units = units_query.prefetch_related('authorized_mos', 'mos_training_capability').select_related('branch')
 
         data = []
         for unit in units:
+            print(f"\nProcessing unit: {unit.name}")
+            print(f"  - Unit level: {unit.unit_level}")
+            print(f"  - Branch: {unit.branch.name if unit.branch else 'None'}")
+            print(f"  - Is active: {unit.is_active}")
+            print(f"  - Recruitment status: {unit.recruitment_status}")
+
             # Get all units under this unit (including the unit itself)
             descendant_units = self._get_all_descendant_unit_ids(unit)
+            print(f"  - Descendant units: {len(descendant_units)}")
 
             # Calculate total available slots for all units under this unit
-            available_slots = RecruitmentSlot.objects.filter(
+            slots_query = RecruitmentSlot.objects.filter(
                 unit__id__in=descendant_units,
                 is_active=True
-            ).aggregate(
+            )
+            print(f"  - Active recruitment slots: {slots_query.count()}")
+
+            available_slots = slots_query.aggregate(
                 total=Sum(F('total_slots') - F('filled_slots') - F('reserved_slots'))
             )['total'] or 0
+            print(f"  - Available slots: {available_slots}")
 
             authorized_mos = unit.authorized_mos.filter(is_active=True)
             training_mos = unit.mos_training_capability.filter(is_active=True)
+            print(f"  - Authorized MOS: {authorized_mos.count()}")
+            print(f"  - Training MOS: {training_mos.count()}")
 
             # Determine branch type based on unit_level prefix
             branch_type = 'unknown'
-            if unit.unit_level.startswith('navy_'):
+            if unit.unit_level and unit.unit_level.startswith('navy_'):
                 branch_type = 'navy'
-            elif unit.unit_level.startswith('aviation_'):
+            elif unit.unit_level and unit.unit_level.startswith('aviation_'):
                 branch_type = 'navy_aviation'
-            elif unit.unit_level.startswith('ground_'):
+            elif unit.unit_level and unit.unit_level.startswith('ground_'):
                 # Further differentiate between Army and Marines based on branch name
                 if unit.branch and 'marine' in unit.branch.name.lower():
                     branch_type = 'marines'
                 else:
                     branch_type = 'army'
+            else:
+                # Fallback: try to determine from branch name
+                if unit.branch:
+                    branch_name = unit.branch.name.lower()
+                    if 'navy' in branch_name and 'aviation' in branch_name:
+                        branch_type = 'navy_aviation'
+                    elif 'navy' in branch_name:
+                        branch_type = 'navy'
+                    elif 'marine' in branch_name:
+                        branch_type = 'marines'
+                    elif 'army' in branch_name:
+                        branch_type = 'army'
+
+            print(f"  - Determined branch type: {branch_type}")
 
             data.append({
                 'id': str(unit.id),
@@ -70,7 +144,7 @@ class RecruitmentStatusViewSet(viewsets.ViewSet):
                 'abbreviation': unit.abbreviation,
                 'motto': unit.motto,
                 'description': unit.description,
-                'unit_type': unit.unit_level,
+                'unit_type': unit.unit_level or 'unknown',
                 'branch_type': branch_type,
                 'branch_name': unit.branch.name if unit.branch else None,
                 'recruitment_status': unit.recruitment_status,
@@ -89,6 +163,7 @@ class RecruitmentStatusViewSet(viewsets.ViewSet):
                 'mos_categories': list(authorized_mos.values_list('category', flat=True).distinct())
             })
 
+        print(f"\n=== TOTAL UNITS RETURNED: {len(data)} ===\n")
         return Response(data)
 
     @action(detail=True, methods=['get'])
@@ -97,7 +172,13 @@ class RecruitmentStatusViewSet(viewsets.ViewSet):
         Get subunits for a specific unit (Divisions for Navy, Platoons for Army/Marines)
         Keeping the method name for backwards compatibility
         """
+        print(f"\n=== PLATOONS ENDPOINT DEBUG ===")
+        print(f"Looking for unit with ID: {pk}")
+
         unit = get_object_or_404(Unit, pk=pk)
+        print(f"Found unit: {unit.name}")
+        print(f"  - Unit level: {unit.unit_level}")
+        print(f"  - Branch: {unit.branch.name if unit.branch else 'None'}")
 
         # Determine what type of subunits to look for based on parent unit type
         subunit_type = None
@@ -107,6 +188,16 @@ class RecruitmentStatusViewSet(viewsets.ViewSet):
             subunit_type = 'aviation_division'
         elif unit.unit_level == 'ground_company':
             subunit_type = 'ground_platoon'
+        elif 'squadron' in str(unit.unit_level).lower():
+            # Fallback for non-standard squadron types
+            subunit_type = 'division'
+            print(f"  - Using fallback: looking for 'division' subunits")
+        elif 'company' in str(unit.unit_level).lower():
+            # Fallback for non-standard company types
+            subunit_type = 'platoon'
+            print(f"  - Using fallback: looking for 'platoon' subunits")
+
+        print(f"Looking for subunit type: {subunit_type}")
 
         if subunit_type:
             # Get specific type of subunits
@@ -115,24 +206,43 @@ class RecruitmentStatusViewSet(viewsets.ViewSet):
                 unit_level=subunit_type,
                 is_active=True
             ).select_related('parent_unit').prefetch_related('recruitment_slots')
+
+            print(f"Found {subunits.count()} subunits with exact level match")
+
+            # If no exact matches, try partial match
+            if subunits.count() == 0 and subunit_type in ['division', 'platoon']:
+                print(f"No exact matches. Trying partial match for '{subunit_type}'...")
+                subunits = Unit.objects.filter(
+                    parent_unit=unit,
+                    unit_level__icontains=subunit_type,
+                    is_active=True
+                ).select_related('parent_unit').prefetch_related('recruitment_slots')
+                print(f"Found {subunits.count()} subunits with partial match")
         else:
             # Fallback - get any direct children
+            print("No specific subunit type determined. Getting all direct children...")
             subunits = Unit.objects.filter(
                 parent_unit=unit,
                 is_active=True
             ).select_related('parent_unit').prefetch_related('recruitment_slots')
+            print(f"Found {subunits.count()} direct child units")
 
         data = []
         for subunit in subunits:
+            print(f"\nProcessing subunit: {subunit.name}")
+            print(f"  - Unit level: {subunit.unit_level}")
+
             # Get slot information
             slots = subunit.recruitment_slots.filter(is_active=True)
             total_available = sum(slot.available_slots for slot in slots)
+            print(f"  - Available slots: {total_available}")
 
             # Get current strength
             current_strength = UserPosition.objects.filter(
                 position__unit=subunit,
                 status='active'
             ).count()
+            print(f"  - Current strength: {current_strength}")
 
             # Get unit leader
             leader_position = subunit.positions.filter(
@@ -148,16 +258,18 @@ class RecruitmentStatusViewSet(viewsets.ViewSet):
                 ).first()
                 if leader_assignment and leader_assignment.user.current_rank:
                     leader_name = f"{leader_assignment.user.current_rank.abbreviation} {leader_assignment.user.username}"
+            print(f"  - Leader: {leader_name}")
 
             # Determine the parent hierarchy names based on unit type
             company = None
             battalion = None
 
-            if subunit.unit_level == 'ground_platoon':
+            if subunit.unit_level == 'ground_platoon' or 'platoon' in str(subunit.unit_level).lower():
                 # For Army/Marines platoons
                 company = subunit.parent_unit.name if subunit.parent_unit else None
                 battalion = subunit.parent_unit.parent_unit.name if subunit.parent_unit and subunit.parent_unit.parent_unit else None
-            elif subunit.unit_level in ['navy_division', 'aviation_division']:
+            elif subunit.unit_level in ['navy_division', 'aviation_division'] or 'division' in str(
+                    subunit.unit_level).lower():
                 # For Navy/Aviation divisions
                 company = subunit.parent_unit.name if subunit.parent_unit else None  # Squadron
                 # Find the task force or air group (parent of squadron)
@@ -167,7 +279,7 @@ class RecruitmentStatusViewSet(viewsets.ViewSet):
             data.append({
                 'id': str(subunit.id),
                 'designation': subunit.unit_designation or subunit.name,
-                'unit_type': subunit.unit_level,
+                'unit_type': subunit.unit_level or 'unknown',
                 'company': company,  # Company for Army/Marines, Squadron for Navy
                 'battalion': battalion,  # Battalion for Army/Marines, Task Force for Navy
                 'current_strength': current_strength,
@@ -179,6 +291,7 @@ class RecruitmentStatusViewSet(viewsets.ViewSet):
                 'career_tracks_available': list(slots.values_list('career_track', flat=True).distinct())
             })
 
+        print(f"\n=== TOTAL SUBUNITS RETURNED: {len(data)} ===\n")
         return Response(data)
 
     def _get_all_descendant_unit_ids(self, unit):
@@ -202,69 +315,3 @@ class RecruitmentStatusViewSet(viewsets.ViewSet):
             current_level = list(next_level)
 
         return descendant_ids
-
-    @action(detail=False, methods=['get'])
-    def branch_structure(self, request):
-        """
-        Get the structure information for each branch with proper value codes
-        """
-        return Response({
-            'navy': {
-                'name': 'Navy',
-                'recruitment_level': 'navy_squadron',
-                'subunit_level': 'navy_division',
-                'structure': [
-                    {'value': 'navy_expeditionary_force', 'label': 'Expeditionary Force'},
-                    {'value': 'navy_fleet', 'label': 'Fleet'},
-                    {'value': 'navy_battle_group', 'label': 'Battle Group'},
-                    {'value': 'navy_task_force', 'label': 'Task Force'},
-                    {'value': 'navy_squadron', 'label': 'Squadron'},
-                    {'value': 'navy_division', 'label': 'Division'},
-                    {'value': 'navy_flight', 'label': 'Flight'},
-                    {'value': 'navy_vessel', 'label': 'Individual Vessel'}
-                ]
-            },
-            'navy_aviation': {
-                'name': 'Naval Aviation',
-                'recruitment_level': 'aviation_squadron',
-                'subunit_level': 'aviation_division',
-                'structure': [
-                    {'value': 'aviation_air_wing', 'label': 'Air Wing'},
-                    {'value': 'aviation_air_group', 'label': 'Air Group'},
-                    {'value': 'aviation_squadron', 'label': 'Squadron'},
-                    {'value': 'aviation_division', 'label': 'Division'},
-                    {'value': 'aviation_flight', 'label': 'Flight'},
-                    {'value': 'aviation_element', 'label': 'Element/Section'}
-                ]
-            },
-            'army': {
-                'name': 'Army',
-                'recruitment_level': 'ground_company',
-                'subunit_level': 'ground_platoon',
-                'structure': [
-                    {'value': 'ground_corps', 'label': 'Corps'},
-                    {'value': 'ground_division', 'label': 'Division'},
-                    {'value': 'ground_brigade', 'label': 'Brigade/Regiment'},
-                    {'value': 'ground_battalion', 'label': 'Battalion'},
-                    {'value': 'ground_company', 'label': 'Company'},
-                    {'value': 'ground_platoon', 'label': 'Platoon'},
-                    {'value': 'ground_squad', 'label': 'Squad'},
-                    {'value': 'ground_fire_team', 'label': 'Fire Team'}
-                ]
-            },
-            'marines': {
-                'name': 'Marines',
-                'recruitment_level': 'ground_company',
-                'subunit_level': 'ground_platoon',
-                'structure': [
-                    {'value': 'ground_corps', 'label': 'Corps'},
-                    {'value': 'ground_division', 'label': 'Division'},
-                    {'value': 'ground_brigade', 'label': 'Brigade/Regiment'},
-                    {'value': 'ground_battalion', 'label': 'Battalion'},
-                    {'value': 'ground_company', 'label': 'Company'},
-                    {'value': 'ground_platoon', 'label': 'Platoon'},
-                    {'value': 'ground_squad', 'label': 'Squad'},
-                    {'value': 'ground_fire_team', 'label': 'Fire Team'}
-                ]
-            }
-        })
