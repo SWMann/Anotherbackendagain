@@ -132,11 +132,24 @@ class UserProfileSerializer(serializers.ModelSerializer):
 
     def get_rank(self, obj):
         if obj.current_rank:
+            # Get the proper insignia URL
+            insignia_url = None
+            if hasattr(obj.current_rank, 'insignia_display_url'):
+                insignia_url = obj.current_rank.insignia_display_url
+            elif obj.current_rank.insignia_image:
+                try:
+                    insignia_url = obj.current_rank.insignia_image.url
+                except:
+                    insignia_url = obj.current_rank.insignia_image_url
+            else:
+                insignia_url = obj.current_rank.insignia_image_url
+
             return {
                 'id': obj.current_rank.id,
                 'name': obj.current_rank.name,
                 'abbreviation': obj.current_rank.abbreviation,
-                'insignia_image_url': obj.current_rank.insignia_image_url
+                'insignia_image_url': insignia_url,
+                'insignia_display_url': insignia_url
             }
         return None
 
@@ -190,12 +203,31 @@ class UserProfileDetailSerializer(serializers.ModelSerializer):
 
     def get_current_rank(self, obj):
         if obj.current_rank:
+            # Get the proper insignia URL using safe access
+            insignia_url = None
+
+            # Try different ways to get the insignia URL
+            if hasattr(obj.current_rank, 'insignia_display_url'):
+                # Use the property if available
+                insignia_url = obj.current_rank.insignia_display_url
+            elif hasattr(obj.current_rank, 'insignia_image') and obj.current_rank.insignia_image:
+                # Try to get URL from image field
+                try:
+                    insignia_url = obj.current_rank.insignia_image.url
+                except:
+                    insignia_url = None
+
+            # Fallback to URL field
+            if not insignia_url and hasattr(obj.current_rank, 'insignia_image_url'):
+                insignia_url = obj.current_rank.insignia_image_url
+
             return {
                 'id': obj.current_rank.id,
                 'name': obj.current_rank.name,
                 'abbreviation': obj.current_rank.abbreviation,
                 'tier': obj.current_rank.tier,
-                'insignia_image_url': obj.current_rank.insignia_image.url,
+                'insignia_image_url': insignia_url,
+                'insignia_display_url': insignia_url,
                 'description': obj.current_rank.description,
                 'color_code': obj.current_rank.color_code,
                 'is_officer': obj.current_rank.is_officer,

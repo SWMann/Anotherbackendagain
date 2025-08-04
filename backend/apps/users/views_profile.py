@@ -17,6 +17,15 @@ from django.db.models import Q
 
 from .serializers import UserProfileSerializer
 
+# Try to import UserRankHistory, but don't fail if it doesn't exist yet
+try:
+    from apps.units.models_promotion import UserRankHistory
+    from apps.units.serializers_promotion import UserRankHistorySerializer
+
+    RANK_HISTORY_AVAILABLE = True
+except ImportError:
+    RANK_HISTORY_AVAILABLE = False
+
 User = get_user_model()
 
 
@@ -33,14 +42,95 @@ class UserProfileDetailView(APIView):
         else:
             user = get_object_or_404(User, pk=pk)
 
-        # Get user data with expanded relations
-        user_data = UserProfileDetailSerializer(user).data
+        # Ensure we prefetch the related rank data
+        user = User.objects.select_related(
+            'current_rank',
+            'primary_unit',
+            'branch',
+            'commission_stage'
+        ).prefetch_related(
+            'primary_mos',
+            'secondary_mos'
+        ).get(pk=user.pk)
+
+        # Get user data with expanded relations - pass request context
+        user_data = UserProfileDetailSerializer(user, context={'request': request}).data
+
+        # Get user's rank history if available
+        rank_history_data = []
+        if RANK_HISTORY_AVAILABLE:
+            rank_history = UserRankHistory.objects.filter(user=user).select_related(
+                'rank', 'rank__branch', 'promoted_by'
+            ).order_by('-date_assigned')
+
+            # Serialize rank history with request context for proper URL generation
+            for history_entry in rank_history:
+                rank_data = {
+                    'id': history_entry.id,
+                    'rank': {
+                        'id': history_entry.rank.id,
+                        'name': history_entry.rank.name,
+                        'abbreviation': history_entry.rank.abbreviation,
+                        'tier': history_entry.rank.tier,
+                        'insignia_image_url': history_entry.rank.insignia_display_url if hasattr(history_entry.rank,
+                                                                                                 'insignia_display_url') else history_entry.rank.insignia_image_url,
+                        'is_officer': history_entry.rank.is_officer,
+                        'is_enlisted': history_entry.rank.is_enlisted,
+                        'is_warrant': history_entry.rank.is_warrant,
+                        'branch': {
+                            'id': history_entry.rank.branch.id,
+                            'name': history_entry.rank.branch.name,
+                            'abbreviation': history_entry.rank.branch.abbreviation
+                        } if history_entry.rank.branch else None
+                    },
+                    'date_assigned': history_entry.date_assigned,
+                    'date_ended': history_entry.date_ended,
+                    'promoted_by': {
+                        'id': history_entry.promoted_by.id,
+                        'username': history_entry.promoted_by.username
+                    } if history_entry.promoted_by else None,
+                    'promotion_order': history_entry.promotion_order,
+                    'notes': history_entry.notes,
+                    'duration_days': ((
+                                          history_entry.date_ended if history_entry.date_ended else timezone.now()) - history_entry.date_assigned).days if history_entry.date_assigned else 0,
+                    'is_current': history_entry.date_ended is None
+                }
+                rank_history_data.append(rank_data)
+
+        # If no rank history exists but user has a current rank, create a synthetic entry
+        if not rank_history_data and user.current_rank:
+            rank_history_data.append({
+                'id': None,
+                'rank': {
+                    'id': user.current_rank.id,
+                    'name': user.current_rank.name,
+                    'abbreviation': user.current_rank.abbreviation,
+                    'tier': user.current_rank.tier,
+                    'insignia_image_url': user.current_rank.insignia_display_url if hasattr(user.current_rank,
+                                                                                            'insignia_display_url') else user.current_rank.insignia_image_url,
+                    'is_officer': user.current_rank.is_officer,
+                    'is_enlisted': user.current_rank.is_enlisted,
+                    'is_warrant': user.current_rank.is_warrant,
+                    'branch': {
+                        'id': user.current_rank.branch.id,
+                        'name': user.current_rank.branch.name,
+                        'abbreviation': user.current_rank.branch.abbreviation
+                    } if user.current_rank.branch else None
+                },
+                'date_assigned': user.join_date,
+                'date_ended': None,
+                'promoted_by': None,
+                'promotion_order': None,
+                'notes': 'Initial rank assignment',
+                'duration_days': (timezone.now() - user.join_date).days if user.join_date else 0,
+                'is_current': True
+            })
 
         # Get user positions with full details
         positions = UserPosition.objects.filter(user=user).select_related(
             'position', 'position__role', 'position__unit', 'position__unit__branch'
         ).order_by('-assignment_date')
-        positions_data = UserPositionSerializer(positions, many=True).data
+        positions_data = UserPositionSerializer(positions, many=True, context={'request': request}).data
 
         # Get user certificates with full details
         certificates = UserCertificate.objects.filter(
@@ -48,7 +138,7 @@ class UserProfileDetailView(APIView):
         ).select_related(
             'certificate', 'issuer', 'training_event'
         ).order_by('-issue_date')
-        certificates_data = UserCertificateSerializer(certificates, many=True).data
+        certificates_data = UserCertificateSerializer(certificates, many=True, context={'request': request}).data
 
         # Get user event attendance with event details
         event_attendances = EventAttendance.objects.filter(
@@ -84,7 +174,7 @@ class UserProfileDetailView(APIView):
 
         # Get user ships
         ships = Ship.objects.filter(owner=user).select_related('assigned_unit')
-        ships_data = ShipListSerializer(ships, many=True).data
+        ships_data = ShipListSerializer(ships, many=True, context={'request': request}).data
 
         # Calculate statistics
         days_in_service = (timezone.now() - user.join_date).days if user.join_date else 0
@@ -99,6 +189,7 @@ class UserProfileDetailView(APIView):
 
         response_data = {
             'user': user_data,
+            'rank_history': rank_history_data,
             'positions': positions_data,
             'certificates': certificates_data,
             'events': events_data,
@@ -110,7 +201,11 @@ class UserProfileDetailView(APIView):
                 'total_certificates': len(certificates_data),
                 'active_certificates': len([c for c in certificates_data if c['is_active']]),
                 'total_ships': len(ships_data),
-                'approved_ships': len([s for s in ships_data if s['approval_status'] == 'Approved'])
+                'approved_ships': len([s for s in ships_data if s['approval_status'] == 'Approved']),
+                'total_ranks_held': len(rank_history_data),
+                'days_at_current_rank': rank_history_data[0]['duration_days'] if rank_history_data and
+                                                                                 rank_history_data[0][
+                                                                                     'is_current'] else 0
             }
         }
 
@@ -126,26 +221,89 @@ class UserRankProgressionView(APIView):
     def get(self, request, pk):
         user = get_object_or_404(User, pk=pk)
 
-        # For now, return current rank only
-        # In a full implementation, you'd track rank history
         progression = []
-        if user.current_rank:
+
+        if RANK_HISTORY_AVAILABLE:
+            # Get actual rank history
+            rank_history = UserRankHistory.objects.filter(user=user).select_related(
+                'rank', 'rank__branch', 'promoted_by'
+            ).order_by('date_assigned')  # Chronological order for progression
+
+            for history in rank_history:
+                # Get the proper insignia URL
+                insignia_url = None
+                if hasattr(history.rank, 'insignia_display_url'):
+                    insignia_url = history.rank.insignia_display_url
+                elif history.rank.insignia_image:
+                    try:
+                        insignia_url = history.rank.insignia_image.url
+                    except:
+                        insignia_url = history.rank.insignia_image_url
+                else:
+                    insignia_url = history.rank.insignia_image_url
+
+                progression.append({
+                    'rank': {
+                        'id': history.rank.id,
+                        'name': history.rank.name,
+                        'abbreviation': history.rank.abbreviation,
+                        'tier': history.rank.tier,
+                        'insignia_image_url': insignia_url,
+                        'is_officer': history.rank.is_officer,
+                        'is_enlisted': history.rank.is_enlisted,
+                        'is_warrant': history.rank.is_warrant
+                    },
+                    'date_achieved': history.date_assigned,
+                    'date_ended': history.date_ended,
+                    'promoted_by': {
+                        'id': history.promoted_by.id,
+                        'username': history.promoted_by.username
+                    } if history.promoted_by else None,
+                    'duration_days': ((
+                                          history.date_ended if history.date_ended else timezone.now()) - history.date_assigned).days if history.date_assigned else 0,
+                    'is_current': history.date_ended is None,
+                    'notes': history.notes,
+                    'promotion_order': history.promotion_order
+                })
+
+        # If no history but user has current rank, create synthetic entry
+        if not progression and user.current_rank:
+            insignia_url = None
+            if hasattr(user.current_rank, 'insignia_display_url'):
+                insignia_url = user.current_rank.insignia_display_url
+            elif user.current_rank.insignia_image:
+                try:
+                    insignia_url = user.current_rank.insignia_image.url
+                except:
+                    insignia_url = user.current_rank.insignia_image_url
+            else:
+                insignia_url = user.current_rank.insignia_image_url
+
             progression.append({
                 'rank': {
                     'id': user.current_rank.id,
                     'name': user.current_rank.name,
                     'abbreviation': user.current_rank.abbreviation,
                     'tier': user.current_rank.tier,
-                    'insignia_image_url': user.current_rank.insignia_image_url
+                    'insignia_image_url': insignia_url,
+                    'is_officer': user.current_rank.is_officer,
+                    'is_enlisted': user.current_rank.is_enlisted,
+                    'is_warrant': user.current_rank.is_warrant
                 },
-                'date_achieved': user.join_date,  # Placeholder
-                'is_current': True
+                'date_achieved': user.join_date,
+                'date_ended': None,
+                'promoted_by': None,
+                'duration_days': (timezone.now() - user.join_date).days if user.join_date else 0,
+                'is_current': True,
+                'notes': 'Initial rank assignment',
+                'promotion_order': None
             })
 
         return Response({
             'user_id': user.id,
-            'current_rank': UserProfileSerializer(user).data.get('rank'),
-            'progression': progression
+            'current_rank': UserProfileSerializer(user, context={'request': request}).data.get('rank'),
+            'progression': progression,
+            'total_promotions': len(progression) - 1 if len(progression) > 0 else 0
         })
 
 
