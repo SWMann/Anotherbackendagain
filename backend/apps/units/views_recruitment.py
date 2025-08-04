@@ -27,9 +27,11 @@ class RecruitmentStatusViewSet(viewsets.ViewSet):
         Get all recruitment units (Squadrons for Navy, Companies for Army/Marines)
         Keeping the method name for backwards compatibility
         """
-        # Get all Squadron and Company level units
+        # Get Squadron level units for Navy/Aviation and Company level for Ground Forces
         units = Unit.objects.filter(
-            Q(unit_level='squadron') | Q(unit_level='company'),
+            Q(unit_level='navy_squadron') |
+            Q(unit_level='aviation_squadron') |
+            Q(unit_level='ground_company'),
             is_active=True
         ).prefetch_related('authorized_mos', 'mos_training_capability').select_related('branch')
 
@@ -49,18 +51,18 @@ class RecruitmentStatusViewSet(viewsets.ViewSet):
             authorized_mos = unit.authorized_mos.filter(is_active=True)
             training_mos = unit.mos_training_capability.filter(is_active=True)
 
-            # Determine branch type for UI
+            # Determine branch type based on unit_level prefix
             branch_type = 'unknown'
-            if unit.branch:
-                if 'navy' in unit.branch.name.lower():
-                    if 'aviation' in unit.branch.name.lower():
-                        branch_type = 'navy_aviation'
-                    else:
-                        branch_type = 'navy'
-                elif 'army' in unit.branch.name.lower():
-                    branch_type = 'army'
-                elif 'marine' in unit.branch.name.lower():
+            if unit.unit_level.startswith('navy_'):
+                branch_type = 'navy'
+            elif unit.unit_level.startswith('aviation_'):
+                branch_type = 'navy_aviation'
+            elif unit.unit_level.startswith('ground_'):
+                # Further differentiate between Army and Marines based on branch name
+                if unit.branch and 'marine' in unit.branch.name.lower():
                     branch_type = 'marines'
+                else:
+                    branch_type = 'army'
 
             data.append({
                 'id': str(unit.id),
@@ -68,7 +70,7 @@ class RecruitmentStatusViewSet(viewsets.ViewSet):
                 'abbreviation': unit.abbreviation,
                 'motto': unit.motto,
                 'description': unit.description,
-                'unit_type': unit.unit_level,  # Will be 'squadron' or 'company'
+                'unit_type': unit.unit_level,
                 'branch_type': branch_type,
                 'branch_name': unit.branch.name if unit.branch else None,
                 'recruitment_status': unit.recruitment_status,
@@ -98,24 +100,25 @@ class RecruitmentStatusViewSet(viewsets.ViewSet):
         unit = get_object_or_404(Unit, pk=pk)
 
         # Determine what type of subunits to look for based on parent unit type
-        if unit.unit_level == 'squadron':
-            # Navy Squadron -> get Divisions
-            subunit_type = 'division'
-        elif unit.unit_level == 'company':
-            # Army/Marine Company -> get Platoons
-            subunit_type = 'platoon'
-        else:
-            # Fallback - try to get any direct children
-            subunits = Unit.objects.filter(
-                parent_unit=unit,
-                is_active=True
-            ).select_related('parent_unit').prefetch_related('recruitment_slots')
+        subunit_type = None
+        if unit.unit_level == 'navy_squadron':
+            subunit_type = 'navy_division'
+        elif unit.unit_level == 'aviation_squadron':
+            subunit_type = 'aviation_division'
+        elif unit.unit_level == 'ground_company':
+            subunit_type = 'ground_platoon'
 
-        if unit.unit_level in ['squadron', 'company']:
+        if subunit_type:
             # Get specific type of subunits
             subunits = Unit.objects.filter(
                 parent_unit=unit,
                 unit_level=subunit_type,
+                is_active=True
+            ).select_related('parent_unit').prefetch_related('recruitment_slots')
+        else:
+            # Fallback - get any direct children
+            subunits = Unit.objects.filter(
+                parent_unit=unit,
                 is_active=True
             ).select_related('parent_unit').prefetch_related('recruitment_slots')
 
@@ -146,25 +149,27 @@ class RecruitmentStatusViewSet(viewsets.ViewSet):
                 if leader_assignment and leader_assignment.user.current_rank:
                     leader_name = f"{leader_assignment.user.current_rank.abbreviation} {leader_assignment.user.username}"
 
-            # Determine the parent hierarchy names
+            # Determine the parent hierarchy names based on unit type
             company = None
             battalion = None
 
-            if subunit.unit_level == 'platoon':
+            if subunit.unit_level == 'ground_platoon':
                 # For Army/Marines platoons
                 company = subunit.parent_unit.name if subunit.parent_unit else None
                 battalion = subunit.parent_unit.parent_unit.name if subunit.parent_unit and subunit.parent_unit.parent_unit else None
-            elif subunit.unit_level == 'division':
-                # For Navy divisions - adapt the structure
+            elif subunit.unit_level in ['navy_division', 'aviation_division']:
+                # For Navy/Aviation divisions
                 company = subunit.parent_unit.name if subunit.parent_unit else None  # Squadron
-                battalion = subunit.parent_unit.parent_unit.name if subunit.parent_unit and subunit.parent_unit.parent_unit else None  # Taskforce
+                # Find the task force or air group (parent of squadron)
+                if subunit.parent_unit and subunit.parent_unit.parent_unit:
+                    battalion = subunit.parent_unit.parent_unit.name
 
             data.append({
                 'id': str(subunit.id),
                 'designation': subunit.unit_designation or subunit.name,
                 'unit_type': subunit.unit_level,
                 'company': company,  # Company for Army/Marines, Squadron for Navy
-                'battalion': battalion,  # Battalion for Army/Marines, Taskforce for Navy
+                'battalion': battalion,  # Battalion for Army/Marines, Task Force for Navy
                 'current_strength': current_strength,
                 'max_strength': subunit.max_personnel,
                 'available_slots': total_available,
@@ -179,7 +184,6 @@ class RecruitmentStatusViewSet(viewsets.ViewSet):
     def _get_all_descendant_unit_ids(self, unit):
         """
         Recursively get all descendant unit IDs
-        More efficient than the previous implementation
         """
         descendant_ids = [unit.id]
 
@@ -198,3 +202,69 @@ class RecruitmentStatusViewSet(viewsets.ViewSet):
             current_level = list(next_level)
 
         return descendant_ids
+
+    @action(detail=False, methods=['get'])
+    def branch_structure(self, request):
+        """
+        Get the structure information for each branch with proper value codes
+        """
+        return Response({
+            'navy': {
+                'name': 'Navy',
+                'recruitment_level': 'navy_squadron',
+                'subunit_level': 'navy_division',
+                'structure': [
+                    {'value': 'navy_expeditionary_force', 'label': 'Expeditionary Force'},
+                    {'value': 'navy_fleet', 'label': 'Fleet'},
+                    {'value': 'navy_battle_group', 'label': 'Battle Group'},
+                    {'value': 'navy_task_force', 'label': 'Task Force'},
+                    {'value': 'navy_squadron', 'label': 'Squadron'},
+                    {'value': 'navy_division', 'label': 'Division'},
+                    {'value': 'navy_flight', 'label': 'Flight'},
+                    {'value': 'navy_vessel', 'label': 'Individual Vessel'}
+                ]
+            },
+            'navy_aviation': {
+                'name': 'Naval Aviation',
+                'recruitment_level': 'aviation_squadron',
+                'subunit_level': 'aviation_division',
+                'structure': [
+                    {'value': 'aviation_air_wing', 'label': 'Air Wing'},
+                    {'value': 'aviation_air_group', 'label': 'Air Group'},
+                    {'value': 'aviation_squadron', 'label': 'Squadron'},
+                    {'value': 'aviation_division', 'label': 'Division'},
+                    {'value': 'aviation_flight', 'label': 'Flight'},
+                    {'value': 'aviation_element', 'label': 'Element/Section'}
+                ]
+            },
+            'army': {
+                'name': 'Army',
+                'recruitment_level': 'ground_company',
+                'subunit_level': 'ground_platoon',
+                'structure': [
+                    {'value': 'ground_corps', 'label': 'Corps'},
+                    {'value': 'ground_division', 'label': 'Division'},
+                    {'value': 'ground_brigade', 'label': 'Brigade/Regiment'},
+                    {'value': 'ground_battalion', 'label': 'Battalion'},
+                    {'value': 'ground_company', 'label': 'Company'},
+                    {'value': 'ground_platoon', 'label': 'Platoon'},
+                    {'value': 'ground_squad', 'label': 'Squad'},
+                    {'value': 'ground_fire_team', 'label': 'Fire Team'}
+                ]
+            },
+            'marines': {
+                'name': 'Marines',
+                'recruitment_level': 'ground_company',
+                'subunit_level': 'ground_platoon',
+                'structure': [
+                    {'value': 'ground_corps', 'label': 'Corps'},
+                    {'value': 'ground_division', 'label': 'Division'},
+                    {'value': 'ground_brigade', 'label': 'Brigade/Regiment'},
+                    {'value': 'ground_battalion', 'label': 'Battalion'},
+                    {'value': 'ground_company', 'label': 'Company'},
+                    {'value': 'ground_platoon', 'label': 'Platoon'},
+                    {'value': 'ground_squad', 'label': 'Squad'},
+                    {'value': 'ground_fire_team', 'label': 'Fire Team'}
+                ]
+            }
+        })
