@@ -76,7 +76,9 @@ class UserPromotionProgressView(APIView):
             user = request.user
 
         # Get or create promotion progress
-        progress, created = UserPromotionProgress.objects.get_or_create(
+        progress, created = UserPromotionProgress.objects.select_related(
+            'user', 'user__current_rank', 'next_rank'
+        ).get_or_create(
             user=user,
             defaults={'next_rank': self._get_next_rank(user)}
         )
@@ -89,8 +91,8 @@ class UserPromotionProgressView(APIView):
         # Evaluate requirements
         progress.evaluate_requirements()
 
-        # Serialize and return
-        serializer = PromotionProgressSerializer(progress)
+        # Serialize and return with context
+        serializer = PromotionProgressSerializer(progress, context={'request': request})
         return Response(serializer.data)
 
     def _get_next_rank(self, user):
