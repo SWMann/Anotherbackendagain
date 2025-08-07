@@ -375,7 +375,7 @@ class ApplicationInterview(BaseModel):
     completed_at = models.DateTimeField(null=True, blank=True)
     interview_notes = models.TextField(blank=True, null=True)
     recommendation = models.CharField(
-        max_length=20,
+        max_length=25,
         choices=[
             ('strongly_recommend', 'Strongly Recommend'),
             ('recommend', 'Recommend'),
