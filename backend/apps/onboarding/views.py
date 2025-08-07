@@ -181,14 +181,14 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         if unit_type == 'primary':
             # Get Squadron/Company level units
             units = units.filter(
-                unit_level__in=['squadron', 'company', 'navy_squadron',
+                unit_type__in=['squadron', 'company', 'navy_squadron',
                                 'aviation_squadron', 'ground_company']
             )
         elif unit_type == 'secondary' and parent_unit_id:
             # Get Division/Platoon level units under the selected primary unit
             units = units.filter(
                 parent_unit_id=parent_unit_id,
-                unit_level__in=['division', 'platoon', 'navy_division',
+                unit_type__in=['division', 'platoon', 'navy_division',
                                 'aviation_division', 'ground_platoon']
             )
         print(units)
