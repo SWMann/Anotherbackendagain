@@ -187,7 +187,7 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         if unit_type == 'primary':
             # Get Squadron/Company level units
             units = units.filter(
-                models.Q(unit_type__in=['squadron', 'company']) |
+                models.Q(unit_type__in=['navy_squadron', 'ground_company', 'aviation_squadron']) |
                 models.Q(unit_level__in=['squadron', 'company'])
             )
             print(f"Filtering for primary units (squadrons/companies), found {units.count()} units")
@@ -196,7 +196,7 @@ class ApplicationViewSet(viewsets.ModelViewSet):
             units = units.filter(
                 parent_unit_id=parent_unit_id
             ).filter(
-                models.Q(unit_type__in=['division', 'platoon']) |
+                models.Q(unit_type__in=['navy_division', 'ground_platoon', 'aviation_division']) |
                 models.Q(unit_level__in=['division', 'platoon'])
             )
             print(f"Filtering for secondary units under {parent_unit_id}, found {units.count()} units")
