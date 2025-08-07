@@ -1,8 +1,399 @@
+# backend/apps/onboarding/models.py
 from django.db import models
+from django.utils import timezone
 from apps.core.models import BaseModel
+import uuid
 
 
+class ApplicationWaiverType(BaseModel):
+    """Types of waivers/acknowledgments required during application"""
+    code = models.CharField(max_length=50, unique=True)
+    title = models.CharField(max_length=200)
+    description = models.TextField()
+    content = models.TextField(help_text="Full waiver/acknowledgment text")
+    is_required = models.BooleanField(default=True)
+    order = models.IntegerField(default=0)
+    waiver_type = models.CharField(
+        max_length=20,
+        choices=[
+            ('acknowledgment', 'Acknowledgment'),
+            ('waiver', 'Waiver'),
+            ('agreement', 'Agreement'),
+            ('consent', 'Consent')
+        ],
+        default='acknowledgment'
+    )
+
+    class Meta:
+        ordering = ['order', 'title']
+
+    def __str__(self):
+        return self.title
+
+
+class ApplicationStatus(models.TextChoices):
+    """Centralized application status choices"""
+    DRAFT = 'draft', 'Draft'
+    SUBMITTED = 'submitted', 'Submitted'
+    UNDER_REVIEW = 'under_review', 'Under Review'
+    INTERVIEW_SCHEDULED = 'interview_scheduled', 'Interview Scheduled'
+    INTERVIEW_COMPLETED = 'interview_completed', 'Interview Completed'
+    APPROVED = 'approved', 'Approved'
+    REJECTED = 'rejected', 'Rejected'
+    WITHDRAWN = 'withdrawn', 'Withdrawn'
+    ON_HOLD = 'on_hold', 'On Hold'
+
+
+class Application(BaseModel):
+    """Enhanced application model for the new flow"""
+
+    # Application tracking
+    application_number = models.CharField(
+        max_length=20,
+        unique=True,
+        editable=False,
+        help_text="Auto-generated application number"
+    )
+
+    # User information (Step 7: Basic Information)
+    user = models.ForeignKey(
+        'users.User',
+        on_delete=models.CASCADE,
+        related_name='applications_v2',
+        null=True,
+        blank=True
+    )
+    discord_id = models.CharField(max_length=100)
+    discord_username = models.CharField(max_length=150)
+    discord_discriminator = models.CharField(max_length=10, blank=True, null=True)
+    email = models.EmailField()
+
+    # Personal information
+    first_name = models.CharField(max_length=100)
+    last_name = models.CharField(max_length=100)
+    date_of_birth = models.DateField(null=True, blank=True)
+    timezone = models.CharField(max_length=50)
+    country = models.CharField(max_length=100)
+
+    # Military structure selection (Steps 8-11)
+    branch = models.ForeignKey(
+        'units.Branch',
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='applications_v2'
+    )
+
+    # Primary unit (Squadron for Navy, Company for Army/Marines)
+    primary_unit = models.ForeignKey(
+        'units.Unit',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='primary_applications'
+    )
+
+    # Secondary unit (Division for Navy, Platoon for Army/Marines)
+    secondary_unit = models.ForeignKey(
+        'units.Unit',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='secondary_applications'
+    )
+
+    # Career track selection (Step 11)
+    career_track = models.CharField(
+        max_length=20,
+        choices=[
+            ('enlisted', 'Enlisted'),
+            ('warrant', 'Warrant Officer'),
+            ('officer', 'Commissioned Officer')
+        ]
+    )
+
+    # MOS selection (Step 12)
+    primary_mos = models.ForeignKey(
+        'units.MOS',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='primary_applications_v2'
+    )
+
+    alternate_mos_1 = models.ForeignKey(
+        'units.MOS',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='alternate1_applications'
+    )
+
+    alternate_mos_2 = models.ForeignKey(
+        'units.MOS',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='alternate2_applications'
+    )
+
+    # Experience and motivation (Step 13)
+    previous_experience = models.TextField(
+        help_text="Previous gaming/simulation experience"
+    )
+    reason_for_joining = models.TextField(
+        help_text="Why do you want to join this unit?"
+    )
+
+    # Role-specific information (Step 14)
+    role_specific_answers = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Answers to role/position specific questions"
+    )
+
+    # Aviation specific
+    has_flight_experience = models.BooleanField(default=False)
+    flight_hours = models.IntegerField(default=0)
+    preferred_aircraft = models.CharField(max_length=100, blank=True, null=True)
+
+    # Availability
+    weekly_availability_hours = models.IntegerField(
+        default=0,
+        help_text="Hours available per week"
+    )
+    can_attend_mandatory_events = models.BooleanField(default=True)
+    availability_notes = models.TextField(blank=True, null=True)
+
+    # Referral
+    referrer = models.ForeignKey(
+        'users.User',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='referrals_v2'
+    )
+    referral_source = models.CharField(
+        max_length=100,
+        blank=True,
+        null=True,
+        help_text="How did you hear about us?"
+    )
+
+    # Status tracking
+    status = models.CharField(
+        max_length=30,
+        choices=ApplicationStatus.choices,
+        default=ApplicationStatus.DRAFT
+    )
+
+    # Important dates
+    started_at = models.DateTimeField(auto_now_add=True)
+    submitted_at = models.DateTimeField(null=True, blank=True)
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    interview_scheduled_at = models.DateTimeField(null=True, blank=True)
+    interview_completed_at = models.DateTimeField(null=True, blank=True)
+    decision_at = models.DateTimeField(null=True, blank=True)
+
+    # Review information
+    reviewer = models.ForeignKey(
+        'users.User',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='reviewed_applications_v2'
+    )
+    reviewer_notes = models.TextField(blank=True, null=True)
+    interview_notes = models.TextField(blank=True, null=True)
+
+    # Discord notification tracking
+    discord_notification_sent = models.BooleanField(default=False)
+    discord_notification_sent_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['application_number']),
+            models.Index(fields=['discord_id']),
+            models.Index(fields=['status']),
+            models.Index(fields=['branch', 'career_track']),
+        ]
+
+    def save(self, *args, **kwargs):
+        if not self.application_number:
+            # Generate application number: APP-YYYYMMDD-XXXX
+            date_str = timezone.now().strftime('%Y%m%d')
+            last_app = Application.objects.filter(
+                application_number__startswith=f'APP-{date_str}'
+            ).order_by('-application_number').first()
+
+            if last_app:
+                last_num = int(last_app.application_number.split('-')[-1])
+                new_num = last_num + 1
+            else:
+                new_num = 1
+
+            self.application_number = f'APP-{date_str}-{new_num:04d}'
+
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.application_number} - {self.discord_username}"
+
+
+class ApplicationWaiver(BaseModel):
+    """Track waiver/acknowledgment acceptance for each application"""
+    application = models.ForeignKey(
+        Application,
+        on_delete=models.CASCADE,
+        related_name='waivers'
+    )
+    waiver_type = models.ForeignKey(
+        ApplicationWaiverType,
+        on_delete=models.CASCADE
+    )
+    accepted = models.BooleanField(default=False)
+    accepted_at = models.DateTimeField(null=True, blank=True)
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    user_agent = models.TextField(blank=True, null=True)
+
+    class Meta:
+        unique_together = ['application', 'waiver_type']
+
+    def save(self, *args, **kwargs):
+        if self.accepted and not self.accepted_at:
+            self.accepted_at = timezone.now()
+        super().save(*args, **kwargs)
+
+
+class ApplicationProgress(BaseModel):
+    """Track progress through the application steps"""
+    application = models.OneToOneField(
+        Application,
+        on_delete=models.CASCADE,
+        related_name='progress'
+    )
+
+    # Step completion tracking
+    basic_info_completed = models.BooleanField(default=False)
+    branch_selected = models.BooleanField(default=False)
+    primary_unit_selected = models.BooleanField(default=False)
+    secondary_unit_selected = models.BooleanField(default=False)
+    track_selected = models.BooleanField(default=False)
+    mos_selected = models.BooleanField(default=False)
+    experience_completed = models.BooleanField(default=False)
+    role_specific_completed = models.BooleanField(default=False)
+    waivers_completed = models.BooleanField(default=False)
+
+    # Current step tracking
+    current_step = models.IntegerField(default=7)  # Start at basic info
+    last_saved_at = models.DateTimeField(auto_now=True)
+
+    # Completion percentage
+    completion_percentage = models.IntegerField(default=0)
+
+    def calculate_completion(self):
+        """Calculate the completion percentage"""
+        steps = [
+            self.basic_info_completed,
+            self.branch_selected,
+            self.primary_unit_selected,
+            self.secondary_unit_selected,
+            self.track_selected,
+            self.mos_selected,
+            self.experience_completed,
+            self.role_specific_completed,
+            self.waivers_completed
+        ]
+        completed = sum(1 for step in steps if step)
+        self.completion_percentage = int((completed / len(steps)) * 100)
+        return self.completion_percentage
+
+    def save(self, *args, **kwargs):
+        self.calculate_completion()
+        super().save(*args, **kwargs)
+
+
+class ApplicationComment(BaseModel):
+    """Internal comments on applications"""
+    application = models.ForeignKey(
+        Application,
+        on_delete=models.CASCADE,
+        related_name='comments'
+    )
+    author = models.ForeignKey(
+        'users.User',
+        on_delete=models.CASCADE
+    )
+    comment = models.TextField()
+    is_visible_to_applicant = models.BooleanField(default=False)
+
+    class Meta:
+        ordering = ['-created_at']
+
+
+class ApplicationInterview(BaseModel):
+    """Track interview scheduling and results"""
+    application = models.ForeignKey(
+        Application,
+        on_delete=models.CASCADE,
+        related_name='interviews'
+    )
+    scheduled_at = models.DateTimeField()
+    scheduled_by = models.ForeignKey(
+        'users.User',
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='scheduled_interviews'
+    )
+    interviewer = models.ForeignKey(
+        'users.User',
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='conducted_interviews'
+    )
+    interview_type = models.CharField(
+        max_length=20,
+        choices=[
+            ('initial', 'Initial Interview'),
+            ('technical', 'Technical Interview'),
+            ('command', 'Command Interview'),
+            ('final', 'Final Interview')
+        ],
+        default='initial'
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=[
+            ('scheduled', 'Scheduled'),
+            ('completed', 'Completed'),
+            ('cancelled', 'Cancelled'),
+            ('no_show', 'No Show'),
+            ('rescheduled', 'Rescheduled')
+        ],
+        default='scheduled'
+    )
+    completed_at = models.DateTimeField(null=True, blank=True)
+    interview_notes = models.TextField(blank=True, null=True)
+    recommendation = models.CharField(
+        max_length=20,
+        choices=[
+            ('strongly_recommend', 'Strongly Recommend'),
+            ('recommend', 'Recommend'),
+            ('neutral', 'Neutral'),
+            ('not_recommend', 'Do Not Recommend'),
+            ('strongly_not_recommend', 'Strongly Do Not Recommend')
+        ],
+        blank=True,
+        null=True
+    )
+
+    class Meta:
+        ordering = ['scheduled_at']
+
+
+# Keep existing models for backward compatibility but mark as deprecated
 class CommissionStage(BaseModel):
+    """DEPRECATED - Use ApplicationProgress instead"""
     name = models.CharField(max_length=100)
     description = models.TextField(blank=True, null=True)
     order_index = models.IntegerField(default=0)
@@ -19,205 +410,63 @@ class CommissionStage(BaseModel):
         ordering = ['order_index']
 
 
-
-class Application(BaseModel):
-    discord_id = models.CharField(max_length=100)
-    username = models.CharField(max_length=150)
-    email = models.EmailField(blank=True, null=True)
-    preferred_branch = models.ForeignKey('units.Branch', on_delete=models.SET_NULL, null=True, blank=True)
-    preferred_unit = models.ForeignKey('units.Unit', on_delete=models.SET_NULL, null=True, blank=True)
-    motivation = models.TextField()
-    experience = models.TextField(blank=True, null=True)
-    referrer = models.ForeignKey('users.User', on_delete=models.SET_NULL, null=True, blank=True,
-                                 related_name='referrals')
-    status = models.CharField(
-        max_length=20,
-        choices=[
-            ('Pending', 'Pending'),
-            ('Approved', 'Approved'),
-            ('Rejected', 'Rejected'),
-            ('Interviewing', 'Interviewing')
-        ],
-        default='Pending'
-    )
-    submission_date = models.DateTimeField(auto_now_add=True)
-    reviewer = models.ForeignKey('users.User', on_delete=models.SET_NULL, null=True, blank=True,
-                                 related_name='reviewed_applications')
-    review_date = models.DateTimeField(null=True, blank=True)
-    reviewer_notes = models.TextField(blank=True, null=True)
-    interview_date = models.DateTimeField(null=True, blank=True)
-    onboarding_complete = models.BooleanField(default=False)
-
-    # Add these fields to the Application model
-    preferred_mos = models.ManyToManyField(
-        'units.MOS',
-        blank=True,
-        related_name='applications',
-        help_text="User's preferred MOS choices (up to 3)"
-    )
-    mos_priority_1 = models.ForeignKey(
-        'units.MOS',
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name='first_choice_applications'
-    )
-    mos_priority_2 = models.ForeignKey(
-        'units.MOS',
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name='second_choice_applications'
-    )
-    mos_priority_3 = models.ForeignKey(
-        'units.MOS',
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name='third_choice_applications'
-    )
-    meets_mos_requirements = models.BooleanField(
-        default=False,
-        help_text="Applicant meets requirements for desired MOS"
-    )
-    mos_waiver_requested = models.BooleanField(
-        default=False,
-        help_text="Applicant requesting waiver for MOS requirements"
-    )
-    mos_waiver_reason = models.TextField(blank=True, null=True)
-
-    preferred_brigade = models.ForeignKey(
-        'units.Unit',
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name='brigade_applications',
-        limit_choices_to={'unit_level': 'brigade'}
-    )
-
-    preferred_battalion = models.ForeignKey(
-        'units.Unit',
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name='battalion_applications',
-        limit_choices_to={'unit_level': 'battalion'}
-    )
-
-    preferred_platoon = models.ForeignKey(
-        'units.Unit',
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name='platoon_applications',
-        limit_choices_to={'unit_level': 'platoon'}
-    )
-
-    # Validate aviation requirements
-    has_flight_experience = models.BooleanField(
-        default=False,
-        help_text="Applicant claims flight simulation experience"
-    )
-
-    flight_hours = models.IntegerField(
-        default=0,
-        help_text="Self-reported flight simulation hours"
-    )
-
-    def clean(self):
-        # Validate aviation unit applications
-        if self.preferred_unit and self.preferred_unit.is_aviation_only:
-            if self.entry_path != 'warrant':
-                raise ValueError(
-                    "Aviation units only accept warrant officer candidates"
-                )
-            if not self.has_flight_experience:
-                raise ValueError(
-                    "Aviation units require flight experience"
-                )
-
-    def __str__(self):
-        return f"Application from {self.username}"
-
-
 class UserOnboardingProgress(BaseModel):
+    """Track user's onboarding after application approval"""
     user = models.OneToOneField('users.User', on_delete=models.CASCADE, related_name='onboarding_progress')
     application = models.ForeignKey(Application, on_delete=models.SET_NULL, null=True, blank=True)
-    bit_event = models.ForeignKey('events.Event', on_delete=models.SET_NULL, null=True, blank=True,
-                                  related_name='bit_attendees')
-    branch_application = models.ForeignKey('BranchApplication', on_delete=models.SET_NULL, null=True, blank=True)
-    branch_induction_event = models.ForeignKey('events.Event', on_delete=models.SET_NULL, null=True, blank=True,
-                                               related_name='induction_attendees')
+
+    # Onboarding milestones
+    discord_roles_assigned = models.BooleanField(default=False)
+    orientation_completed = models.BooleanField(default=False)
+    basic_training_enrolled = models.BooleanField(default=False)
+    basic_training_completed = models.BooleanField(default=False)
+    unit_assigned = models.BooleanField(default=False)
+    mentor_assigned = models.BooleanField(default=False)
+
+    # Dates
+    discord_roles_assigned_at = models.DateTimeField(null=True, blank=True)
+    orientation_completed_at = models.DateTimeField(null=True, blank=True)
+    basic_training_enrolled_at = models.DateTimeField(null=True, blank=True)
+    basic_training_completed_at = models.DateTimeField(null=True, blank=True)
+    unit_assigned_at = models.DateTimeField(null=True, blank=True)
+    mentor_assigned_at = models.DateTimeField(null=True, blank=True)
+
     onboarding_status = models.CharField(
         max_length=50,
         choices=[
-            ('Applied', 'Applied'),
-            ('BIT Completed', 'BIT Completed'),
-            ('Branch Applied', 'Branch Applied'),
-            ('Branch Inducted', 'Branch Inducted'),
-            ('Unit Assigned', 'Unit Assigned'),
-            ('Active', 'Active'),
+            ('pending_discord', 'Pending Discord Setup'),
+            ('pending_orientation', 'Pending Orientation'),
+            ('in_training', 'In Basic Training'),
+            ('pending_assignment', 'Pending Unit Assignment'),
+            ('active', 'Active Member'),
+            ('inactive', 'Inactive'),
         ],
-        default='Applied'
+        default='pending_discord'
     )
-    officer_track = models.BooleanField(default=False)
-    warrant_track = models.BooleanField(default=False)
+
     notes = models.TextField(blank=True, null=True)
-    last_updated = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f"Onboarding progress for {self.user.username}"
-
-
-class BranchApplication(BaseModel):
-    user = models.ForeignKey('users.User', on_delete=models.CASCADE, related_name='branch_applications')
-    branch = models.ForeignKey('units.Branch', on_delete=models.CASCADE, related_name='branch_applications')
-    application_type = models.CharField(
-        max_length=20,
-        choices=[
-            ('Enlisted', 'Enlisted'),
-            ('Officer', 'Officer'),
-            ('Warrant', 'Warrant')
-        ],
-        default='Enlisted'
-    )
-    motivation = models.TextField()
-    experience = models.TextField(blank=True, null=True)
-    preferred_role = models.TextField(blank=True, null=True)
-    submission_date = models.DateTimeField(auto_now_add=True)
-    status = models.CharField(
-        max_length=20,
-        choices=[
-            ('Pending', 'Pending'),
-            ('Approved', 'Approved'),
-            ('Rejected', 'Rejected'),
-            ('Under Review', 'Under Review')
-        ],
-        default='Pending'
-    )
-    reviewer = models.ForeignKey('users.User', on_delete=models.SET_NULL, null=True, blank=True,
-                                 related_name='reviewed_branch_applications')
-    review_date = models.DateTimeField(null=True, blank=True)
-    reviewer_notes = models.TextField(blank=True, null=True)
-    approval_date = models.DateTimeField(null=True, blank=True)
-
-    def __str__(self):
-        return f"{self.user.username}'s application to {self.branch.name}"
+        return f"Onboarding: {self.user.username}"
 
 
 class MentorAssignment(BaseModel):
+    """Mentor assignments for new members"""
     recruit = models.ForeignKey('users.User', on_delete=models.CASCADE, related_name='mentor_assignments')
     mentor = models.ForeignKey('users.User', on_delete=models.CASCADE, related_name='mentee_assignments')
+    application = models.ForeignKey(Application, on_delete=models.SET_NULL, null=True, blank=True)
+
     start_date = models.DateTimeField(auto_now_add=True)
     end_date = models.DateTimeField(null=True, blank=True)
     status = models.CharField(
         max_length=20,
         choices=[
-            ('Active', 'Active'),
-            ('Completed', 'Completed'),
-            ('Terminated', 'Terminated')
+            ('active', 'Active'),
+            ('completed', 'Completed'),
+            ('terminated', 'Terminated'),
+            ('on_hold', 'On Hold')
         ],
-        default='Active'
+        default='active'
     )
     assignment_notes = models.TextField(blank=True, null=True)
     progress_reports = models.JSONField(blank=True, null=True)

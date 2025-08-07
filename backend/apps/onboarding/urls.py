@@ -1,28 +1,38 @@
+# backend/apps/onboarding/urls.py
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import (
-    CommissionStageViewSet, ApplicationViewSet, UserOnboardingProgressViewSet,
-    BranchApplicationViewSet, MentorAssignmentViewSet, UserOnboardingActionViewSet
-)
-from ..units.views_recruitment import RecruitmentStatusViewSet
+from .views import ApplicationViewSet
 
 router = DefaultRouter()
-router.register(r'commission-stages', CommissionStageViewSet)
-router.register(r'applications', ApplicationViewSet)
-router.register(r'onboarding-progress', UserOnboardingProgressViewSet)
-router.register(r'branch-applications', BranchApplicationViewSet)
-router.register(r'mentor-assignments', MentorAssignmentViewSet)
-router.register(r'actions', UserOnboardingActionViewSet, basename='onboarding-actions')
+router.register(r'applications', ApplicationViewSet, basename='application')
 
 urlpatterns = [
-    path('', include(router.urls)),
-    path('status/<str:discord_id>/', ApplicationViewSet.as_view({'get': 'status'}), name='application-status'),
-    path('branch-applications/templates/<uuid:branch_id>/', BranchApplicationViewSet.as_view({'get': 'templates'}), name='branch-application-templates'),
-    path('my/onboarding-progress/', UserOnboardingProgressViewSet.as_view({'get': 'my'}), name='my-onboarding-progress'),
-    path('my/branch-applications/', BranchApplicationViewSet.as_view({'get': 'my'}), name='my-branch-applications'),
-    path('my/next-requirements/', UserOnboardingActionViewSet.as_view({'get': 'next_requirements'}), name='my-next-requirements'),
-    path('recruitment/brigades/', RecruitmentStatusViewSet.as_view({'get': 'brigades'})),
-    path('recruitment/brigades/<uuid:pk>/platoons/', RecruitmentStatusViewSet.as_view({'get': 'platoons'})),
-    path('recruitment/check-eligibility/', ApplicationViewSet.as_view({'post': 'check_eligibility'})),
+    # Application flow endpoints
+    path('applications/recruitment-data/', ApplicationViewSet.as_view({'get': 'recruitment_data'}),
+         name='recruitment-data'),
+    path('applications/current/', ApplicationViewSet.as_view({'get': 'current'}), name='current-application'),
+    path('applications/check-status/', ApplicationViewSet.as_view({'get': 'check_status'}),
+         name='check-application-status'),
+    path('applications/get-units/', ApplicationViewSet.as_view({'get': 'get_units'}), name='get-units'),
+    path('applications/get-mos-options/', ApplicationViewSet.as_view({'get': 'get_mos_options'}),
+         name='get-mos-options'),
 
+    # Application actions
+    path('applications/<uuid:pk>/save-progress/', ApplicationViewSet.as_view({'post': 'save_progress'}),
+         name='save-application-progress'),
+    path('applications/<uuid:pk>/accept-waiver/', ApplicationViewSet.as_view({'post': 'accept_waiver'}),
+         name='accept-waiver'),
+    path('applications/<uuid:pk>/submit/', ApplicationViewSet.as_view({'post': 'submit'}), name='submit-application'),
+
+    # Admin actions
+    path('applications/<uuid:pk>/add-comment/', ApplicationViewSet.as_view({'post': 'add_comment'}),
+         name='add-application-comment'),
+    path('applications/<uuid:pk>/schedule-interview/', ApplicationViewSet.as_view({'post': 'schedule_interview'}),
+         name='schedule-interview'),
+    path('applications/<uuid:pk>/approve/', ApplicationViewSet.as_view({'post': 'approve'}),
+         name='approve-application'),
+    path('applications/<uuid:pk>/reject/', ApplicationViewSet.as_view({'post': 'reject'}), name='reject-application'),
+
+    # Include router URLs
+    path('', include(router.urls)),
 ]

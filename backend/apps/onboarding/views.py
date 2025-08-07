@@ -1,409 +1,686 @@
-from rest_framework import viewsets, permissions, status, filters
+# backend/apps/onboarding/views.py
+from rest_framework import viewsets, permissions, status
 from rest_framework.response import Response
 from rest_framework.decorators import action
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
+from django.db import transaction
 from django_filters.rest_framework import DjangoFilterBackend
-from .models import CommissionStage, Application, UserOnboardingProgress, BranchApplication, MentorAssignment
-from .serializers import (
-    CommissionStageSerializer, ApplicationListSerializer, ApplicationDetailSerializer,
-    ApplicationCreateSerializer, ApplicationUpdateSerializer, ApplicationStatusSerializer,
-    UserOnboardingProgressSerializer, BranchApplicationSerializer, BranchApplicationCreateSerializer,
-    BranchApplicationUpdateSerializer, MentorAssignmentSerializer, MentorAssignmentCreateSerializer,
-    NextRequirementsSerializer
+from rest_framework import filters
+import requests
+import os
+
+from .models import (
+    Application, ApplicationWaiverType, ApplicationWaiver,
+    ApplicationProgress, ApplicationComment, ApplicationInterview,
+    UserOnboardingProgress, MentorAssignment, ApplicationStatus
 )
+from .serializers import (
+    ApplicationListSerializer, ApplicationDetailSerializer,
+    ApplicationCreateSerializer, ApplicationSubmitSerializer,
+    ApplicationStatusSerializer, ApplicationWaiverTypeSerializer,
+    ApplicationWaiverSerializer, ApplicationProgressSerializer,
+    ApplicationCommentSerializer, ApplicationInterviewSerializer,
+    ApplicationRecruitmentDataSerializer, UserOnboardingProgressSerializer,
+    MentorAssignmentSerializer
+)
+from apps.units.models import Unit, MOS, Branch
 from apps.users.views import IsAdminOrReadOnly
 from django.contrib.auth import get_user_model
-from apps.units.models import MOS
-
 
 User = get_user_model()
 
 
-class CommissionStageViewSet(viewsets.ModelViewSet):
-    queryset = CommissionStage.objects.all().order_by('order_index')
-    serializer_class = CommissionStageSerializer
-    permission_classes = [IsAdminOrReadOnly]
-
-
 class ApplicationViewSet(viewsets.ModelViewSet):
-    queryset = Application.objects.all().order_by('-submission_date')
+    """
+    ViewSet for the new application flow
+    """
+    queryset = Application.objects.all()
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['status', 'preferred_branch', 'preferred_unit']
-    search_fields = ['discord_id', 'username', 'email', 'motivation', 'experience']
-    ordering_fields = ['submission_date', 'review_date', 'interview_date']
+    filterset_fields = ['status', 'branch', 'career_track', 'primary_unit', 'secondary_unit']
+    search_fields = ['application_number', 'discord_username', 'email', 'first_name', 'last_name']
+    ordering_fields = ['created_at', 'submitted_at', 'status']
+    ordering = ['-created_at']
 
     def get_permissions(self):
-        if self.action in ['create', 'status']:
+        """
+        - Anyone can create an application
+        - Authenticated users can view/update their own
+        - Admins can view/update all
+        """
+        if self.action in ['create', 'recruitment_data']:
             return [permissions.AllowAny()]
-        elif self.action in ['update', 'partial_update', 'destroy']:
-            return [permissions.IsAdminUser()]
-        return [permissions.IsAuthenticated()]
+        elif self.action in ['retrieve', 'update', 'partial_update', 'submit', 'check_status']:
+            return [permissions.IsAuthenticated()]
+        return [permissions.IsAdminUser()]
 
     def get_serializer_class(self):
         if self.action == 'list':
             return ApplicationListSerializer
-        elif self.action == 'create':
+        elif self.action in ['create', 'update', 'partial_update', 'save_progress']:
             return ApplicationCreateSerializer
-        elif self.action in ['update', 'partial_update']:
-            return ApplicationUpdateSerializer
-        elif self.action == 'status':
+        elif self.action == 'submit':
+            return ApplicationSubmitSerializer
+        elif self.action == 'check_status':
             return ApplicationStatusSerializer
         return ApplicationDetailSerializer
 
+    def get_queryset(self):
+        """Filter applications based on user permissions"""
+        queryset = super().get_queryset()
+
+        if not self.request.user.is_authenticated:
+            return queryset.none()
+
+        if not self.request.user.is_admin:
+            # Non-admins can only see their own applications
+            queryset = queryset.filter(user=self.request.user)
+
+        return queryset
+
     @action(detail=False, methods=['get'], permission_classes=[permissions.AllowAny])
-    def status(self, request):
-        """Check application status by Discord ID."""
-        discord_id = request.query_params.get('discord_id')
-
-        if not discord_id:
-            return Response({"detail": "Discord ID is required."}, status=status.HTTP_400_BAD_REQUEST)
-
-        application = get_object_or_404(Application, discord_id=discord_id)
-        serializer = self.get_serializer(application)
-        return Response(serializer.data)
-
-    @action(detail=False, methods=['post'])
-    def check_eligibility(self, request):
-        """Check MOS eligibility for an application"""
-        mos_ids = request.data.get('mos_ids', [])
-
-        if not mos_ids:
-            return Response(
-                {'error': 'mos_ids list is required'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        results = {}
-
-        for mos_id in mos_ids:
-            try:
-                mos = MOS.objects.get(id=mos_id)
-
-                # Check basic eligibility
-                eligible = True
-                reasons = []
-
-                if not mos.is_entry_level:
-                    eligible = False
-                    reasons.append("MOS not available for entry-level")
-
-                if not mos.is_active:
-                    eligible = False
-                    reasons.append("MOS not currently active")
-
-                # Check unit availability
-                available_units = mos.authorized_units.filter(
-                    is_active=True,
-                    recruitment_status='open'
-                ).count()
-
-                results[mos_id] = {
-                    'mos_code': mos.code,
-                    'mos_title': mos.title,
-                    'eligible': eligible,
-                    'reasons': reasons,
-                    'available_units': available_units,
-                    'ait_weeks': mos.ait_weeks,
-                    'category': mos.category
-                }
-
-            except MOS.DoesNotExist:
-                results[mos_id] = {
-                    'error': 'MOS not found'
-                }
-
-        return Response(results)
-
-class UserOnboardingProgressViewSet(viewsets.ModelViewSet):
-    queryset = UserOnboardingProgress.objects.all()
-    serializer_class = UserOnboardingProgressSerializer
-    permission_classes = [permissions.IsAuthenticated]
-    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
-    filterset_fields = ['onboarding_status', 'officer_track', 'warrant_track']
-    ordering_fields = ['last_updated']
-    ordering = ['-last_updated']
-
-    @action(detail=False, methods=['get'], permission_classes=[permissions.IsAuthenticated])
-    def my(self, request):
-        """Get current user's onboarding progress."""
-        try:
-            progress = UserOnboardingProgress.objects.get(user=request.user)
-            serializer = self.get_serializer(progress)
-            return Response(serializer.data)
-        except UserOnboardingProgress.DoesNotExist:
-            return Response(
-                {"detail": "Onboarding progress not found for user."},
-                status=status.HTTP_404_NOT_FOUND
-            )
-
-
-class BranchApplicationViewSet(viewsets.ModelViewSet):
-    queryset = BranchApplication.objects.all().order_by('-submission_date')
-    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
-    filterset_fields = ['branch', 'application_type', 'status', 'user']
-    ordering_fields = ['submission_date', 'review_date']
-
-    def get_serializer_class(self):
-        if self.action == 'create':
-            return BranchApplicationCreateSerializer
-        elif self.action in ['update', 'partial_update']:
-            return BranchApplicationUpdateSerializer
-        return BranchApplicationSerializer
-
-    def get_permissions(self):
-        if self.action in ['update', 'partial_update', 'destroy']:
-            return [permissions.IsAdminUser()]
-        return [permissions.IsAuthenticated()]
-
-    def perform_create(self, serializer):
-        serializer.save(user=self.request.user)
-
-    @action(detail=False, methods=['get'], permission_classes=[permissions.IsAuthenticated])
-    def my(self, request):
-        """Get current user's branch applications."""
-        applications = BranchApplication.objects.filter(user=request.user)
-        serializer = self.get_serializer(applications, many=True)
+    def recruitment_data(self, request):
+        """
+        Get initial recruitment data for the application form
+        Step 6: Initial Breakdown
+        """
+        serializer = ApplicationRecruitmentDataSerializer({})
         return Response(serializer.data)
 
     @action(detail=False, methods=['get'], permission_classes=[permissions.IsAuthenticated])
-    def templates(self, request):
-        """Get branch application templates."""
-        branch_id = request.query_params.get('branch_id')
+    def current(self, request):
+        """
+        Get or create the current user's draft application
+        """
+        # Check for existing draft application
+        application = Application.objects.filter(
+            user=request.user,
+            status=ApplicationStatus.DRAFT
+        ).first()
 
-        if not branch_id:
-            return Response({"detail": "Branch ID is required."}, status=status.HTTP_400_BAD_REQUEST)
+        if not application:
+            # Create new draft application
+            application = Application.objects.create(
+                user=request.user,
+                discord_id=request.user.discord_id,
+                discord_username=request.user.username,
+                email=request.user.email or '',
+                status=ApplicationStatus.DRAFT
+            )
+            # Create progress tracker
+            ApplicationProgress.objects.create(application=application)
 
-        # This is a placeholder - in a real implementation, you'd fetch actual templates
-        # from a database or other storage
-        templates = {
-            "enlisted": {
-                "motivation_prompt": "Why do you want to join as an enlisted member?",
-                "experience_prompt": "What relevant experience do you have?",
-                "role_prompt": "What role are you interested in?"
-            },
-            "officer": {
-                "motivation_prompt": "Why do you want to join as an officer?",
-                "experience_prompt": "What leadership experience do you have?",
-                "role_prompt": "What officer role are you interested in?"
-            },
-            "warrant": {
-                "motivation_prompt": "Why do you want to join as a warrant officer?",
-                "experience_prompt": "What technical experience do you have?",
-                "role_prompt": "What warrant officer role are you interested in?"
-            }
-        }
-
-        return Response(templates)
-
-
-class MentorAssignmentViewSet(viewsets.ModelViewSet):
-    queryset = MentorAssignment.objects.all().order_by('-start_date')
-    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
-    filterset_fields = ['recruit', 'mentor', 'status']
-    ordering_fields = ['start_date', 'end_date']
-
-    def get_serializer_class(self):
-        if self.action == 'create':
-            return MentorAssignmentCreateSerializer
-        return MentorAssignmentSerializer
-
-    def get_permissions(self):
-        if self.action in ['create', 'update', 'partial_update', 'destroy']:
-            return [permissions.IsAdminUser()]
-        return [permissions.IsAuthenticated()]
-
-    def perform_create(self, serializer):
-        serializer.save(assigned_by=self.request.user)
+        serializer = ApplicationDetailSerializer(application, context={'request': request})
+        return Response(serializer.data)
 
     @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated])
-    def add_progress_report(self, request, pk=None):
-        """Add a progress report to a mentor assignment."""
-        assignment = self.get_object()
+    def save_progress(self, request, pk=None):
+        """
+        Save progress on the application (auto-save functionality)
+        """
+        application = self.get_object()
 
-        # Check if user is the mentor or an admin
-        if not (request.user.is_admin or request.user == assignment.mentor):
+        # Ensure user owns this application
+        if application.user != request.user and not request.user.is_admin:
             return Response(
-                {"detail": "You do not have permission to add progress reports."},
+                {'error': 'You do not have permission to edit this application'},
                 status=status.HTTP_403_FORBIDDEN
             )
 
-        report = request.data.get('report')
-
-        if not report:
-            return Response({"detail": "Report content is required."}, status=status.HTTP_400_BAD_REQUEST)
-
-        # Get existing reports or initialize empty list
-        reports = assignment.progress_reports or []
-
-        # Add new report with timestamp
-        reports.append({
-            "date": timezone.now().isoformat(),
-            "author": request.user.username,
-            "content": report
-        })
-
-        # Save updated reports
-        assignment.progress_reports = reports
-        assignment.save()
-
-        return Response({
-            "id": assignment.id,
-            "latest_report": reports[-1]
-        })
-
-    @action(detail=True, methods=['post'], permission_classes=[permissions.IsAdminUser()])
-    def complete(self, request, pk=None):
-        """Mark a mentor assignment as completed."""
-        assignment = self.get_object()
-        notes = request.data.get('notes', '')
-
-        assignment.status = 'Completed'
-        assignment.end_date = timezone.now()
-        assignment.assignment_notes += f"\n\nCompleted on {timezone.now().strftime('%Y-%m-%d')}. Notes: {notes}"
-        assignment.save()
-
-        return Response({
-            "id": assignment.id,
-            "status": assignment.status,
-            "end_date": assignment.end_date
-        })
-
-
-class UserOnboardingActionViewSet(viewsets.ViewSet):
-    permission_classes = [permissions.IsAuthenticated]
-
-    @action(detail=True, methods=['post'], permission_classes=[permissions.IsAdminUser()])
-    def complete_bit(self, request, pk=None):
-        """Mark BIT as completed for a user."""
-        event = get_object_or_404('events.Event', pk=pk)
-        user_id = request.data.get('user_id')
-
-        if not user_id:
-            return Response({"detail": "User ID is required."}, status=status.HTTP_400_BAD_REQUEST)
-
-        user = get_object_or_404(User, id=user_id)
-
-        # Update user's onboarding progress
-        progress, created = UserOnboardingProgress.objects.get_or_create(
-            user=user,
-            defaults={
-                'onboarding_status': 'BIT Completed',
-                'bit_event': event
-            }
-        )
-
-        if not created:
-            progress.onboarding_status = 'BIT Completed'
-            progress.bit_event = event
-            progress.save()
-
-        # Update user model
-        user.bit_completion_date = timezone.now()
-        user.onboarding_status = 'BIT Completed'
-        user.save()
-
-        return Response({
-            "user_id": user.id,
-            "username": user.username,
-            "onboarding_status": user.onboarding_status,
-            "bit_completion_date": user.bit_completion_date
-        })
-
-    @action(detail=True, methods=['post'], permission_classes=[permissions.IsAdminUser()])
-    def complete_induction(self, request, pk=None):
-        """Mark branch induction as completed for a user."""
-        event = get_object_or_404('events.Event', pk=pk)
-        user_id = request.data.get('user_id')
-
-        if not user_id:
-            return Response({"detail": "User ID is required."}, status=status.HTTP_400_BAD_REQUEST)
-
-        user = get_object_or_404(User, id=user_id)
-
-        # Update user's onboarding progress
-        progress, created = UserOnboardingProgress.objects.get_or_create(
-            user=user,
-            defaults={
-                'onboarding_status': 'Branch Inducted',
-                'branch_induction_event': event
-            }
-        )
-
-        if not created:
-            progress.onboarding_status = 'Branch Inducted'
-            progress.branch_induction_event = event
-            progress.save()
-
-        # Update user model
-        user.branch_induction_date = timezone.now()
-        user.onboarding_status = 'Branch Inducted'
-        user.save()
-
-        return Response({
-            "user_id": user.id,
-            "username": user.username,
-            "onboarding_status": user.onboarding_status,
-            "branch_induction_date": user.branch_induction_date
-        })
-
-    @action(detail=True, methods=['post'], permission_classes=[permissions.IsAdminUser()])
-    def assign_unit(self, request, pk=None):
-        """Assign user to a unit."""
-        user = get_object_or_404(User, pk=pk)
-        unit_id = request.data.get('unit_id')
-        position_id = request.data.get('position_id')
-
-        if not unit_id:
-            return Response({"detail": "Unit ID is required."}, status=status.HTTP_400_BAD_REQUEST)
-
-        unit = get_object_or_404('units.Unit', id=unit_id)
-
-        # Update user model
-        user.primary_unit = unit
-        user.unit_assignment_date = timezone.now()
-        user.onboarding_status = 'Unit Assigned'
-        user.save()
-
-        # Update user's onboarding progress
-        progress, created = UserOnboardingProgress.objects.get_or_create(
-            user=user,
-            defaults={'onboarding_status': 'Unit Assigned'}
-        )
-
-        if not created:
-            progress.onboarding_status = 'Unit Assigned'
-            progress.save()
-
-        # Assign position if provided
-        if position_id:
-            from apps.units.models import Position, UserPosition
-            position = get_object_or_404(Position, id=position_id)
-
-            UserPosition.objects.create(
-                user=user,
-                position=position,
-                unit=unit,
-                is_primary=True
+        # Only allow editing draft applications
+        if application.status != ApplicationStatus.DRAFT:
+            return Response(
+                {'error': 'Cannot edit submitted applications'},
+                status=status.HTTP_400_BAD_REQUEST
             )
 
+        serializer = ApplicationCreateSerializer(
+            application,
+            data=request.data,
+            partial=True,
+            context={'request': request}
+        )
+
+        if serializer.is_valid():
+            serializer.save()
+
+            # Return full application with progress
+            detail_serializer = ApplicationDetailSerializer(
+                application,
+                context={'request': request}
+            )
+            return Response(detail_serializer.data)
+
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=False, methods=['get'], permission_classes=[permissions.IsAuthenticated])
+    def get_units(self, request):
+        """
+        Get available units based on branch selection
+        Steps 9-10: Unit selection
+        """
+        branch_id = request.query_params.get('branch_id')
+        unit_type = request.query_params.get('unit_type')  # 'primary' or 'secondary'
+        parent_unit_id = request.query_params.get('parent_unit_id')
+
+        if not branch_id:
+            return Response(
+                {'error': 'branch_id is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        units = Unit.objects.filter(
+            branch_id=branch_id,
+            is_active=True,
+            recruitment_status__in=['open', 'limited']
+        )
+
+        # Filter by unit type
+        if unit_type == 'primary':
+            # Get Squadron/Company level units
+            units = units.filter(
+                unit_level__in=['squadron', 'company', 'navy_squadron',
+                                'aviation_squadron', 'ground_company']
+            )
+        elif unit_type == 'secondary' and parent_unit_id:
+            # Get Division/Platoon level units under the selected primary unit
+            units = units.filter(
+                parent_unit_id=parent_unit_id,
+                unit_level__in=['division', 'platoon', 'navy_division',
+                                'aviation_division', 'ground_platoon']
+            )
+
+        data = []
+        for unit in units:
+            # Calculate available slots
+            available_slots = unit.recruitment_slots.filter(
+                is_active=True
+            ).count()
+
+            data.append({
+                'id': unit.id,
+                'name': unit.name,
+                'abbreviation': unit.abbreviation,
+                'unit_type': unit.unit_level,
+                'motto': unit.motto,
+                'description': unit.description,
+                'emblem_url': unit.emblem_url,
+                'available_slots': available_slots,
+                'recruitment_status': unit.recruitment_status,
+                'is_aviation_only': unit.is_aviation_only
+            })
+
+        return Response(data)
+
+    @action(detail=False, methods=['get'], permission_classes=[permissions.IsAuthenticated])
+    def get_mos_options(self, request):
+        """
+        Get available MOS options based on branch and track
+        Step 12: MOS Selection
+        """
+        branch_id = request.query_params.get('branch_id')
+        career_track = request.query_params.get('career_track')
+        unit_id = request.query_params.get('unit_id')
+
+        if not branch_id:
+            return Response(
+                {'error': 'branch_id is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Get MOS options for the branch
+        mos_query = MOS.objects.filter(
+            branch_id=branch_id,
+            is_active=True,
+            is_entry_level=True
+        )
+
+        # Filter by unit if provided
+        if unit_id:
+            unit = Unit.objects.get(id=unit_id)
+            mos_query = mos_query.filter(
+                id__in=unit.authorized_mos.values_list('id', flat=True)
+            )
+
+        # Special filtering for warrant track (aviation)
+        if career_track == 'warrant':
+            mos_query = mos_query.filter(category='aviation')
+
+        data = []
+        for mos in mos_query:
+            data.append({
+                'id': mos.id,
+                'code': mos.code,
+                'title': mos.title,
+                'category': mos.category,
+                'description': mos.description,
+                'ait_weeks': mos.ait_weeks,
+                'physical_demand_rating': mos.physical_demand_rating
+            })
+
+        return Response(data)
+
+    @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated])
+    def accept_waiver(self, request, pk=None):
+        """
+        Accept a specific waiver/acknowledgment
+        Step 15: Waivers
+        """
+        application = self.get_object()
+        waiver_type_id = request.data.get('waiver_type_id')
+
+        if not waiver_type_id:
+            return Response(
+                {'error': 'waiver_type_id is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        waiver_type = get_object_or_404(ApplicationWaiverType, id=waiver_type_id)
+
+        # Get client info for tracking
+        ip_address = request.META.get('REMOTE_ADDR')
+        user_agent = request.META.get('HTTP_USER_AGENT', '')
+
+        waiver, created = ApplicationWaiver.objects.update_or_create(
+            application=application,
+            waiver_type=waiver_type,
+            defaults={
+                'accepted': True,
+                'accepted_at': timezone.now(),
+                'ip_address': ip_address,
+                'user_agent': user_agent
+            }
+        )
+
+        # Check if all required waivers are accepted
+        required_waivers = ApplicationWaiverType.objects.filter(is_required=True)
+        accepted_waivers = ApplicationWaiver.objects.filter(
+            application=application,
+            waiver_type__in=required_waivers,
+            accepted=True
+        ).count()
+
+        if accepted_waivers == required_waivers.count():
+            application.progress.waivers_completed = True
+            application.progress.save()
+
+        serializer = ApplicationWaiverSerializer(waiver)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated])
+    def submit(self, request, pk=None):
+        """
+        Final submission of the application
+        Step 16: Submit
+        """
+        application = self.get_object()
+
+        # Ensure user owns this application
+        if application.user != request.user and not request.user.is_admin:
+            return Response(
+                {'error': 'You do not have permission to submit this application'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        # Check if already submitted
+        if application.status != ApplicationStatus.DRAFT:
+            return Response(
+                {'error': 'Application has already been submitted'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Validate all required fields are filled
+        errors = []
+
+        if not all([application.first_name, application.last_name, application.email]):
+            errors.append('Basic information is incomplete')
+
+        if not application.branch:
+            errors.append('Branch selection is required')
+
+        if not application.primary_unit:
+            errors.append('Primary unit selection is required')
+
+        if not application.career_track:
+            errors.append('Career track selection is required')
+
+        if not application.primary_mos:
+            errors.append('Primary MOS selection is required')
+
+        if not application.previous_experience or not application.reason_for_joining:
+            errors.append('Experience and motivation are required')
+
+        # Check all required waivers are accepted
+        required_waivers = ApplicationWaiverType.objects.filter(is_required=True)
+        accepted_waivers = ApplicationWaiver.objects.filter(
+            application=application,
+            waiver_type__in=required_waivers,
+            accepted=True
+        ).count()
+
+        if accepted_waivers != required_waivers.count():
+            errors.append('All waivers and acknowledgments must be accepted')
+
+        if errors:
+            return Response(
+                {'errors': errors},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Submit the application
+        with transaction.atomic():
+            application.status = ApplicationStatus.SUBMITTED
+            application.submitted_at = timezone.now()
+            application.save()
+
+            # Update progress
+            application.progress.current_step = 17
+            application.progress.save()
+
+            # Send Discord notification
+            self.send_discord_notification(application)
+
+        # Return success with redirect info
         return Response({
-            "user_id": user.id,
-            "username": user.username,
-            "onboarding_status": user.onboarding_status,
-            "unit": unit.name,
-            "unit_assignment_date": user.unit_assignment_date
+            'success': True,
+            'application_number': application.application_number,
+            'message': 'Application submitted successfully',
+            'redirect': f'/profile/{request.user.id}',
+            'next_steps': [
+                'Your application has been received and is under review',
+                'You will be contacted via Discord for an interview',
+                'Check your profile page for application status updates'
+            ]
         })
 
     @action(detail=False, methods=['get'], permission_classes=[permissions.IsAuthenticated])
-    def next_requirements(self, request):
-        """Get requirements for next stage."""
-        try:
-            progress = UserOnboardingProgress.objects.get(user=request.user)
-            serializer = NextRequirementsSerializer(progress)
-            return Response(serializer.data)
-        except UserOnboardingProgress.DoesNotExist:
-            return Response(
-                {"detail": "Onboarding progress not found for user."},
-                status=status.HTTP_404_NOT_FOUND
+    def check_status(self, request):
+        """
+        Check status of user's applications
+        """
+        applications = Application.objects.filter(
+            user=request.user
+        ).exclude(status=ApplicationStatus.DRAFT).order_by('-submitted_at')
+
+        serializer = ApplicationStatusSerializer(applications, many=True)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['post'], permission_classes=[permissions.IsAdminUser])
+    def add_comment(self, request, pk=None):
+        """
+        Add a comment to an application (admin only)
+        """
+        application = self.get_object()
+
+        serializer = ApplicationCommentSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save(
+                application=application,
+                author=request.user
             )
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=True, methods=['post'], permission_classes=[permissions.IsAdminUser])
+    def schedule_interview(self, request, pk=None):
+        """
+        Schedule an interview for the application
+        """
+        application = self.get_object()
+
+        serializer = ApplicationInterviewSerializer(data=request.data)
+        if serializer.is_valid():
+            interview = serializer.save(
+                application=application,
+                scheduled_by=request.user
+            )
+
+            # Update application status
+            application.status = ApplicationStatus.INTERVIEW_SCHEDULED
+            application.interview_scheduled_at = interview.scheduled_at
+            application.save()
+
+            # Send Discord notification about interview
+            self.send_interview_notification(application, interview)
+
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=True, methods=['post'], permission_classes=[permissions.IsAdminUser])
+    def approve(self, request, pk=None):
+        """
+        Approve an application
+        """
+        application = self.get_object()
+
+        with transaction.atomic():
+            application.status = ApplicationStatus.APPROVED
+            application.decision_at = timezone.now()
+            application.reviewer = request.user
+            application.reviewer_notes = request.data.get('notes', '')
+            application.save()
+
+            # Create onboarding progress
+            UserOnboardingProgress.objects.get_or_create(
+                user=application.user,
+                defaults={'application': application}
+            )
+
+            # Send approval notification
+            self.send_approval_notification(application)
+
+        return Response({
+            'success': True,
+            'message': 'Application approved successfully'
+        })
+
+    @action(detail=True, methods=['post'], permission_classes=[permissions.IsAdminUser])
+    def reject(self, request, pk=None):
+        """
+        Reject an application
+        """
+        application = self.get_object()
+
+        application.status = ApplicationStatus.REJECTED
+        application.decision_at = timezone.now()
+        application.reviewer = request.user
+        application.reviewer_notes = request.data.get('notes', '')
+        application.save()
+
+        # Send rejection notification
+        self.send_rejection_notification(application)
+
+        return Response({
+            'success': True,
+            'message': 'Application rejected'
+        })
+
+    def send_discord_notification(self, application):
+        """
+        Send Discord webhook notification for new application
+        Step 18: Discord notification
+        """
+        webhook_url = os.environ.get('DISCORD_APPLICATION_WEBHOOK')
+        if not webhook_url:
+            return
+
+        try:
+            embed = {
+                "title": f"New Application Received",
+                "description": f"Application #{application.application_number}",
+                "color": 3447003,  # Blue
+                "fields": [
+                    {
+                        "name": "Applicant",
+                        "value": f"{application.discord_username}",
+                        "inline": True
+                    },
+                    {
+                        "name": "Branch",
+                        "value": application.branch.name if application.branch else "N/A",
+                        "inline": True
+                    },
+                    {
+                        "name": "Track",
+                        "value": application.get_career_track_display(),
+                        "inline": True
+                    },
+                    {
+                        "name": "Primary Unit",
+                        "value": application.primary_unit.name if application.primary_unit else "N/A",
+                        "inline": True
+                    },
+                    {
+                        "name": "MOS",
+                        "value": f"{application.primary_mos.code} - {application.primary_mos.title}" if application.primary_mos else "N/A",
+                        "inline": True
+                    }
+                ],
+                "timestamp": timezone.now().isoformat()
+            }
+
+            # Send to applicant
+            user_message = {
+                "content": f"<@{application.discord_id}>",
+                "embeds": [{
+                    **embed,
+                    "title": "Application Received",
+                    "description": f"Thank you for applying! Your application #{application.application_number} has been received and is under review.",
+                    "footer": {
+                        "text": "You will be contacted soon regarding the next steps."
+                    }
+                }]
+            }
+
+            requests.post(webhook_url, json=user_message)
+
+            # Send to admin channel
+            admin_webhook = os.environ.get('DISCORD_ADMIN_WEBHOOK')
+            if admin_webhook:
+                admin_message = {
+                    "embeds": [embed]
+                }
+                requests.post(admin_webhook, json=admin_message)
+
+            # Mark notification as sent
+            application.discord_notification_sent = True
+            application.discord_notification_sent_at = timezone.now()
+            application.save()
+
+        except Exception as e:
+            print(f"Failed to send Discord notification: {e}")
+
+    def send_interview_notification(self, application, interview):
+        """Send Discord notification for interview scheduling"""
+        webhook_url = os.environ.get('DISCORD_APPLICATION_WEBHOOK')
+        if not webhook_url:
+            return
+
+        try:
+            message = {
+                "content": f"<@{application.discord_id}>",
+                "embeds": [{
+                    "title": "Interview Scheduled",
+                    "description": f"Your interview for application #{application.application_number} has been scheduled.",
+                    "color": 15844367,  # Gold
+                    "fields": [
+                        {
+                            "name": "Date & Time",
+                            "value": interview.scheduled_at.strftime("%B %d, %Y at %H:%M UTC"),
+                            "inline": False
+                        },
+                        {
+                            "name": "Type",
+                            "value": interview.get_interview_type_display(),
+                            "inline": True
+                        },
+                        {
+                            "name": "Interviewer",
+                            "value": interview.interviewer.username if interview.interviewer else "TBD",
+                            "inline": True
+                        }
+                    ],
+                    "footer": {
+                        "text": "Please be available on Discord at the scheduled time."
+                    }
+                }]
+            }
+
+            requests.post(webhook_url, json=message)
+
+        except Exception as e:
+            print(f"Failed to send interview notification: {e}")
+
+    def send_approval_notification(self, application):
+        """Send Discord notification for application approval"""
+        webhook_url = os.environ.get('DISCORD_APPLICATION_WEBHOOK')
+        if not webhook_url:
+            return
+
+        try:
+            message = {
+                "content": f"<@{application.discord_id}>",
+                "embeds": [{
+                    "title": "Application Approved!",
+                    "description": f"Congratulations! Your application #{application.application_number} has been approved.",
+                    "color": 5763719,  # Green
+                    "fields": [
+                        {
+                            "name": "Next Steps",
+                            "value": "1. Discord roles will be assigned shortly\n2. Complete orientation\n3. Begin basic training",
+                            "inline": False
+                        },
+                        {
+                            "name": "Assigned Unit",
+                            "value": application.primary_unit.name if application.primary_unit else "TBD",
+                            "inline": True
+                        },
+                        {
+                            "name": "Career Track",
+                            "value": application.get_career_track_display(),
+                            "inline": True
+                        }
+                    ],
+                    "footer": {
+                        "text": "Welcome to the unit!"
+                    }
+                }]
+            }
+
+            requests.post(webhook_url, json=message)
+
+        except Exception as e:
+            print(f"Failed to send approval notification: {e}")
+
+    def send_rejection_notification(self, application):
+        """Send Discord notification for application rejection"""
+        webhook_url = os.environ.get('DISCORD_APPLICATION_WEBHOOK')
+        if not webhook_url:
+            return
+
+        try:
+            message = {
+                "content": f"<@{application.discord_id}>",
+                "embeds": [{
+                    "title": "Application Status Update",
+                    "description": f"Thank you for your interest. After careful review, we are unable to approve application #{application.application_number} at this time.",
+                    "color": 15548997,  # Red
+                    "fields": [
+                        {
+                            "name": "Next Steps",
+                            "value": "You may reapply after 30 days. We encourage you to gain more experience and try again.",
+                            "inline": False
+                        }
+                    ],
+                    "footer": {
+                        "text": "Thank you for your interest in our unit."
+                    }
+                }]
+            }
+
+            requests.post(webhook_url, json=message)
+
+        except Exception as e:
+            print(f"Failed to send rejection notification: {e}")
