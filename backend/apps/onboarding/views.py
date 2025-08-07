@@ -191,7 +191,7 @@ class ApplicationViewSet(viewsets.ModelViewSet):
                 unit_level__in=['division', 'platoon', 'navy_division',
                                 'aviation_division', 'ground_platoon']
             )
-
+        print(units)
         data = []
         for unit in units:
             # Calculate available slots
