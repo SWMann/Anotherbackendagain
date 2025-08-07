@@ -35,12 +35,60 @@ class ApplicationViewSet(viewsets.ModelViewSet):
     """
     ViewSet for the new application flow
     """
+
+
     queryset = Application.objects.all()
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['status', 'branch', 'career_track', 'primary_unit', 'secondary_unit']
     search_fields = ['application_number', 'discord_username', 'email', 'first_name', 'last_name']
     ordering_fields = ['created_at', 'submitted_at', 'status']
     ordering = ['-created_at']
+
+    def _get_all_subordinate_units(self, unit):
+        """
+        Recursively get all subordinate units including the unit itself.
+        Returns a list of unit IDs.
+
+        This is used to aggregate recruitment slots from an entire unit hierarchy,
+        so when a user selects a Squadron, they see positions from the Squadron,
+        its Divisions, Flights, etc.
+
+        Args:
+            unit: The parent Unit object
+
+        Returns:
+            list: List of UUID strings representing all unit IDs in the hierarchy
+        """
+        unit_ids = [unit.id]
+
+        # Get all direct children
+        children = Unit.objects.filter(
+            parent_unit=unit,
+            is_active=True
+        ).values_list('id', flat=True)
+
+        unit_ids.extend(children)
+
+        # Recursively get all descendants
+        current_level = list(children)
+        max_depth = 10  # Prevent infinite loops
+        depth = 0
+
+        while current_level and depth < max_depth:
+            next_level = Unit.objects.filter(
+                parent_unit_id__in=current_level,
+                is_active=True
+            ).values_list('id', flat=True)
+
+            if next_level:
+                unit_ids.extend(next_level)
+                current_level = list(next_level)
+            else:
+                break
+
+            depth += 1
+
+        return unit_ids
 
     def get_permissions(self):
         """
@@ -155,11 +203,15 @@ class ApplicationViewSet(viewsets.ModelViewSet):
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+    # backend/apps/onboarding/views.py
+    # Replace the existing get_units action with this updated version
+
     @action(detail=False, methods=['get'], permission_classes=[permissions.IsAuthenticated])
     def get_units(self, request):
         """
         Get available units based on branch selection
         Steps 9-10: Unit selection
+        Now includes positions from all subordinate units
         """
         branch_id = request.query_params.get('branch_id')
         unit_type = request.query_params.get('unit_type')  # 'primary' or 'secondary'
@@ -203,10 +255,42 @@ class ApplicationViewSet(viewsets.ModelViewSet):
 
         data = []
         for unit in units:
-            # Calculate total available slots using prefetched data
-            total_available = sum(
-                slot.available_slots for slot in unit.active_recruitment_slots
+            # Get all subordinate units recursively
+            all_unit_ids = self._get_all_subordinate_units(unit)
+
+            # Calculate total available slots from this unit and all subordinates
+            total_available = RecruitmentSlot.objects.filter(
+                unit_id__in=all_unit_ids,
+                is_active=True
+            ).aggregate(
+                total=models.Sum(models.F('total_slots') - models.F('filled_slots') - models.F('reserved_slots'))
+            )['total'] or 0
+
+            # Get breakdown by career track
+            slots_by_track = RecruitmentSlot.objects.filter(
+                unit_id__in=all_unit_ids,
+                is_active=True
+            ).values('career_track').annotate(
+                available=models.Sum(models.F('total_slots') - models.F('filled_slots') - models.F('reserved_slots'))
             )
+
+            track_breakdown = {
+                'enlisted': 0,
+                'warrant': 0,
+                'officer': 0
+            }
+            for slot_data in slots_by_track:
+                if slot_data['career_track'] in track_breakdown:
+                    track_breakdown[slot_data['career_track']] = slot_data['available'] or 0
+
+            # Get all unique roles available in this unit hierarchy
+            available_roles = Role.objects.filter(
+                recruitment_slots__unit_id__in=all_unit_ids,
+                recruitment_slots__is_active=True
+            ).distinct().values('id', 'name', 'category')
+
+            # Get number of subordinate units
+            subordinate_count = len(all_unit_ids) - 1  # Exclude the unit itself
 
             # Only include units with available slots or open recruitment status
             if total_available > 0 or unit.recruitment_status in ['open', 'limited', None]:
@@ -219,21 +303,55 @@ class ApplicationViewSet(viewsets.ModelViewSet):
                     'description': unit.description,
                     'emblem_url': unit.emblem_url,
                     'available_slots': total_available,
+                    'slots_by_track': track_breakdown,
                     'recruitment_status': unit.recruitment_status or 'open',
                     'recruitment_notes': getattr(unit, 'recruitment_notes', None),
-                    'is_aviation_only': getattr(unit, 'is_aviation_only', False)
+                    'is_aviation_only': getattr(unit, 'is_aviation_only', False),
+                    'subordinate_units_count': subordinate_count,
+                    'total_units_included': len(all_unit_ids),
+                    'available_roles_count': len(available_roles),
+                    'available_roles': list(available_roles)[:10]  # Show first 10 roles
                 })
 
         return Response(data)
+
+    def _get_all_subordinate_units(self, unit):
+        """
+        Get all subordinate units recursively, including the unit itself
+        Returns a list of unit IDs
+        """
+        unit_ids = [unit.id]
+
+        # Get all children
+        children = Unit.objects.filter(
+            parent_unit=unit,
+            is_active=True
+        ).values_list('id', flat=True)
+
+        unit_ids.extend(children)
+
+        # Recursively get all descendants
+        current_level = list(children)
+        while current_level:
+            next_level = Unit.objects.filter(
+                parent_unit_id__in=current_level,
+                is_active=True
+            ).values_list('id', flat=True)
+
+            unit_ids.extend(next_level)
+            current_level = list(next_level)
+
+        return unit_ids
+
+    # backend/apps/onboarding/views.py
+    # Replace the existing get_mos_options action with this updated version
 
     @action(detail=False, methods=['get'], permission_classes=[permissions.IsAuthenticated])
     def get_mos_options(self, request):
         """
         Get available recruitment slots based on unit and track
         Step 12: MOS Selection - Shows open positions based on roles
-
-        NOTE: This assumes Role has either a 'mos' or 'required_mos' field.
-        If your Role model has a different relationship to MOS, update this method accordingly.
+        Now aggregates positions from selected unit and all subordinate units
         """
         branch_id = request.query_params.get('branch_id')
         career_track = request.query_params.get('career_track')
@@ -245,15 +363,30 @@ class ApplicationViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        # Get open recruitment slots for the unit and career track
+        # Get the selected unit
+        try:
+            unit = Unit.objects.get(id=unit_id, is_active=True)
+        except Unit.DoesNotExist:
+            return Response(
+                {'error': 'Unit not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Get all subordinate units including the selected unit
+        all_unit_ids = self._get_all_subordinate_units(unit)
+
+        print(f"Getting MOS options for unit {unit.name} and {len(all_unit_ids) - 1} subordinate units")
+
+        # Get open recruitment slots for all units in hierarchy and career track
         slots_query = RecruitmentSlot.objects.filter(
-            unit_id=unit_id,
+            unit_id__in=all_unit_ids,
             career_track=career_track,
             is_active=True
-        ).select_related('role')
+        ).select_related('role', 'unit')
 
         # Create a dictionary to track MOS slots
         mos_slots = {}
+        unit_breakdown = {}  # Track which units have which positions
 
         # Process each recruitment slot
         for slot in slots_query:
@@ -268,41 +401,78 @@ class ApplicationViewSet(viewsets.ModelViewSet):
                 # Option 2: Required MOS field
                 elif hasattr(slot.role, 'required_mos') and slot.role.required_mos:
                     role_mos = slot.role.required_mos
-                # Option 3: Many-to-many relationship (uncomment if needed)
-                # elif hasattr(slot.role, 'mos_set'):
-                #     for mos in slot.role.mos_set.all():
-                #         # Process each MOS...
+                # Option 3: Use role itself as a pseudo-MOS (if MOS model isn't fully integrated)
+                else:
+                    # Create a pseudo-MOS entry based on the role
+                    role_mos = type('obj', (object,), {
+                        'id': f'role_{slot.role.id}',
+                        'code': slot.role.abbreviation or f'R{slot.role.id[:8]}',
+                        'title': slot.role.name,
+                        'category': slot.role.category,
+                        'description': slot.role.description or '',
+                        'ait_weeks': 0,
+                        'physical_demand_rating': ''
+                    })()
 
                 if role_mos:
                     mos_id = str(role_mos.id)
+
+                    # Initialize MOS entry if not exists
                     if mos_id not in mos_slots:
                         mos_slots[mos_id] = {
                             'id': role_mos.id,
-                            'code': role_mos.code,
-                            'title': role_mos.title,
-                            'category': getattr(role_mos, 'category', ''),
-                            'description': getattr(role_mos, 'description', ''),
+                            'code': getattr(role_mos, 'code', ''),
+                            'title': getattr(role_mos, 'title', slot.role.name),
+                            'category': getattr(role_mos, 'category', slot.role.category),
+                            'description': getattr(role_mos, 'description', slot.role.description or ''),
                             'ait_weeks': getattr(role_mos, 'ait_weeks', 0),
                             'physical_demand_rating': getattr(role_mos, 'physical_demand_rating', ''),
                             'available_slots': 0,
-                            'roles': []
+                            'roles': [],
+                            'units': [],
+                            'is_command_role': slot.role.is_command_role,
+                            'is_staff_role': slot.role.is_staff_role,
+                            'is_nco_role': slot.role.is_nco_role,
+                            'is_specialist_role': slot.role.is_specialist_role
                         }
 
+                    # Add to available slots count
                     mos_slots[mos_id]['available_slots'] += slot.available_slots
 
-                    # Add role info
-                    role_info = f"{slot.role.name} ({slot.available_slots} slots)"
+                    # Add role info with unit context
+                    role_info = f"{slot.role.name} in {slot.unit.abbreviation} ({slot.available_slots} slots)"
                     if role_info not in mos_slots[mos_id]['roles']:
                         mos_slots[mos_id]['roles'].append(role_info)
+
+                    # Track which units have this position
+                    unit_info = {
+                        'id': str(slot.unit.id),
+                        'name': slot.unit.name,
+                        'abbreviation': slot.unit.abbreviation,
+                        'level': slot.unit.unit_level,
+                        'available_slots': slot.available_slots
+                    }
+
+                    # Check if this unit is already in the list
+                    unit_already_added = any(u['id'] == unit_info['id'] for u in mos_slots[mos_id]['units'])
+                    if not unit_already_added:
+                        mos_slots[mos_id]['units'].append(unit_info)
+
+                    # Track unit breakdown
+                    if slot.unit.abbreviation not in unit_breakdown:
+                        unit_breakdown[slot.unit.abbreviation] = 0
+                    unit_breakdown[slot.unit.abbreviation] += slot.available_slots
 
         # Convert to list and sort by available slots (most available first)
         data = list(mos_slots.values())
         data.sort(key=lambda x: x['available_slots'], reverse=True)
 
-        # If no MOS found with slots but we have a branch, show all entry-level MOS
-        # This is a fallback if the Role-MOS relationship isn't set up
+        # If no MOS found with slots but we have a branch, show all entry-level MOS as fallback
         if not data and branch_id:
             try:
+                # Try to get MOS from the database
+                from apps.units.models import MOS
+
                 all_mos = MOS.objects.filter(
                     branch_id=branch_id,
                     is_active=True,
@@ -313,24 +483,81 @@ class ApplicationViewSet(viewsets.ModelViewSet):
                 if career_track == 'warrant':
                     all_mos = all_mos.filter(category='aviation')
 
-                data = [{
-                    'id': mos.id,
-                    'code': mos.code,
-                    'title': mos.title,
-                    'category': getattr(mos, 'category', ''),
-                    'description': getattr(mos, 'description', ''),
-                    'ait_weeks': getattr(mos, 'ait_weeks', 0),
-                    'physical_demand_rating': getattr(mos, 'physical_demand_rating', ''),
-                    'available_slots': 1,  # Show as available but limited
-                    'roles': ['Position availability varies by unit']
-                } for mos in all_mos]
+                if all_mos.exists():
+                    data = [{
+                        'id': mos.id,
+                        'code': mos.code,
+                        'title': mos.title,
+                        'category': getattr(mos, 'category', ''),
+                        'description': getattr(mos, 'description', ''),
+                        'ait_weeks': getattr(mos, 'ait_weeks', 0),
+                        'physical_demand_rating': getattr(mos, 'physical_demand_rating', ''),
+                        'available_slots': 1,  # Show as available but limited
+                        'roles': ['Position availability varies by unit'],
+                        'units': [{'name': unit.name, 'abbreviation': unit.abbreviation}]
+                    } for mos in all_mos]
+                else:
+                    # If no MOS in database, use roles as fallback
+                    roles = Role.objects.filter(
+                        allowed_branches=branch_id,
+                        is_active=True
+                    )
 
-                # Log that we're using the fallback
-                print(f"Using MOS fallback for branch {branch_id}, found {len(data)} MOS options")
+                    # Filter by career track
+                    if career_track == 'enlisted':
+                        roles = roles.filter(
+                            models.Q(is_nco_role=True) |
+                            models.Q(is_specialist_role=True) |
+                            models.Q(typical_rank__is_enlisted=True)
+                        )
+                    elif career_track == 'warrant':
+                        roles = roles.filter(
+                            models.Q(category='aviation') |
+                            models.Q(typical_rank__is_warrant=True)
+                        )
+                    elif career_track == 'officer':
+                        roles = roles.filter(
+                            models.Q(is_command_role=True) |
+                            models.Q(is_staff_role=True) |
+                            models.Q(typical_rank__is_officer=True)
+                        )
+
+                    data = [{
+                        'id': f'role_{role.id}',
+                        'code': role.abbreviation or f'R{str(role.id)[:8]}',
+                        'title': role.name,
+                        'category': role.category,
+                        'description': role.description or '',
+                        'available_slots': 1,
+                        'roles': [role.name],
+                        'units': [{'name': unit.name, 'abbreviation': unit.abbreviation}],
+                        'is_command_role': role.is_command_role,
+                        'is_staff_role': role.is_staff_role,
+                        'is_nco_role': role.is_nco_role,
+                        'is_specialist_role': role.is_specialist_role
+                    } for role in roles[:20]]  # Limit to 20 roles
+
+                print(f"Using fallback for branch {branch_id}, found {len(data)} MOS/Role options")
             except Exception as e:
-                print(f"Error in MOS fallback: {e}")
+                print(f"Error in fallback: {e}")
 
-        return Response(data)
+        # Add summary information
+        response_data = {
+            'mos_options': data,
+            'summary': {
+                'total_options': len(data),
+                'total_available_slots': sum(m['available_slots'] for m in data),
+                'units_included': len(all_unit_ids),
+                'primary_unit': {
+                    'id': str(unit.id),
+                    'name': unit.name,
+                    'abbreviation': unit.abbreviation
+                },
+                'unit_breakdown': unit_breakdown
+            }
+        }
+
+        return Response(response_data)
 
     @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated])
     def accept_waiver(self, request, pk=None):
