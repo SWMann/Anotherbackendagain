@@ -164,6 +164,10 @@ class Application(BaseModel):
     can_attend_mandatory_events = models.BooleanField(default=True)
     availability_notes = models.TextField(blank=True, null=True)
 
+    # Additional role-specific fields
+    leadership_experience = models.TextField(blank=True, null=True)
+    technical_experience = models.TextField(blank=True, null=True)
+
     # Referral
     referrer = models.ForeignKey(
         'users.User',

@@ -4,7 +4,7 @@ from rest_framework.response import Response
 from rest_framework.decorators import action
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
-from django.db import transaction
+from django.db import transaction, models
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters
 import requests
@@ -24,7 +24,7 @@ from .serializers import (
     ApplicationRecruitmentDataSerializer, UserOnboardingProgressSerializer,
     MentorAssignmentSerializer
 )
-from apps.units.models import Unit, MOS, Branch
+from apps.units.models import Unit, MOS, Branch, RecruitmentSlot, Role
 from apps.users.views import IsAdminOrReadOnly
 from django.contrib.auth import get_user_model
 
@@ -51,8 +51,8 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         if self.action in ['create', 'recruitment_data']:
             return [permissions.AllowAny()]
         elif self.action in ['retrieve', 'update', 'partial_update', 'submit', 'check_status',
-                           'current', 'get_units', 'get_mos_options', 'save_progress',
-                           'accept_waiver']:
+                             'current', 'get_units', 'get_mos_options', 'save_progress',
+                             'accept_waiver']:
             return [permissions.IsAuthenticated()]
         return [permissions.IsAdminUser()]
 
@@ -171,94 +171,164 @@ class ApplicationViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
+        # Get base query with prefetch
         units = Unit.objects.filter(
             branch_id=branch_id,
-            is_active=True,
-            recruitment_status__in=['open', 'limited']
+            is_active=True
+        ).prefetch_related(
+            models.Prefetch(
+                'recruitment_slots',
+                queryset=RecruitmentSlot.objects.filter(is_active=True),
+                to_attr='active_recruitment_slots'
+            )
         )
 
-        # Filter by unit type
+        # Filter by unit type - be flexible with field names
         if unit_type == 'primary':
             # Get Squadron/Company level units
             units = units.filter(
-                unit_type__in=['squadron', 'company', 'navy_squadron',
-                                'aviation_squadron', 'ground_company']
+                models.Q(unit_type__in=['squadron', 'company']) |
+                models.Q(unit_level__in=['squadron', 'company'])
             )
+            print(f"Filtering for primary units (squadrons/companies), found {units.count()} units")
         elif unit_type == 'secondary' and parent_unit_id:
             # Get Division/Platoon level units under the selected primary unit
             units = units.filter(
-                parent_unit_id=parent_unit_id,
-                unit_type__in=['division', 'platoon', 'navy_division',
-                                'aviation_division', 'ground_platoon']
+                parent_unit_id=parent_unit_id
+            ).filter(
+                models.Q(unit_type__in=['division', 'platoon']) |
+                models.Q(unit_level__in=['division', 'platoon'])
             )
-        print(units)
+            print(f"Filtering for secondary units under {parent_unit_id}, found {units.count()} units")
+
         data = []
         for unit in units:
-            # Calculate available slots
-            available_slots = unit.recruitment_slots.filter(
-                is_active=True
-            ).count()
+            # Calculate total available slots using prefetched data
+            total_available = sum(
+                slot.available_slots for slot in unit.active_recruitment_slots
+            )
 
-            data.append({
-                'id': unit.id,
-                'name': unit.name,
-                'abbreviation': unit.abbreviation,
-                'unit_type': unit.unit_level,
-                'motto': unit.motto,
-                'description': unit.description,
-                'emblem_url': unit.emblem_url,
-                'available_slots': available_slots,
-                'recruitment_status': unit.recruitment_status,
-                'is_aviation_only': unit.is_aviation_only
-            })
+            # Only include units with available slots or open recruitment status
+            if total_available > 0 or unit.recruitment_status in ['open', 'limited', None]:
+                data.append({
+                    'id': unit.id,
+                    'name': unit.name,
+                    'abbreviation': unit.abbreviation,
+                    'unit_type': getattr(unit, 'unit_type', None) or getattr(unit, 'unit_level', None),
+                    'motto': unit.motto,
+                    'description': unit.description,
+                    'emblem_url': unit.emblem_url,
+                    'available_slots': total_available,
+                    'recruitment_status': unit.recruitment_status or 'open',
+                    'recruitment_notes': getattr(unit, 'recruitment_notes', None),
+                    'is_aviation_only': getattr(unit, 'is_aviation_only', False)
+                })
 
         return Response(data)
 
     @action(detail=False, methods=['get'], permission_classes=[permissions.IsAuthenticated])
     def get_mos_options(self, request):
         """
-        Get available MOS options based on branch and track
-        Step 12: MOS Selection
+        Get available recruitment slots based on unit and track
+        Step 12: MOS Selection - Shows open positions based on roles
+
+        NOTE: This assumes Role has either a 'mos' or 'required_mos' field.
+        If your Role model has a different relationship to MOS, update this method accordingly.
         """
         branch_id = request.query_params.get('branch_id')
         career_track = request.query_params.get('career_track')
         unit_id = request.query_params.get('unit_id')
 
-        if not branch_id:
+        if not unit_id:
             return Response(
-                {'error': 'branch_id is required'},
+                {'error': 'unit_id is required'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        # Get MOS options for the branch
-        mos_query = MOS.objects.filter(
-            branch_id=branch_id,
-            is_active=True,
-            is_entry_level=True
-        )
+        # Get open recruitment slots for the unit and career track
+        slots_query = RecruitmentSlot.objects.filter(
+            unit_id=unit_id,
+            career_track=career_track,
+            is_active=True
+        ).select_related('role')
 
-        # Filter by unit if provided
-        if unit_id:
-            unit = Unit.objects.get(id=unit_id)
-            mos_query = mos_query.filter(
-                id__in=unit.authorized_mos.values_list('id', flat=True)
-            )
+        # Create a dictionary to track MOS slots
+        mos_slots = {}
 
-        # Special filtering for warrant track (aviation)
-        if career_track == 'warrant':
-            mos_query = mos_query.filter(category='aviation')
+        # Process each recruitment slot
+        for slot in slots_query:
+            # Only process if slot has available positions
+            if slot.available_slots > 0 and slot.role:
+                # Try to get MOS from role - adjust this based on your Role model
+                role_mos = None
 
-        data = []
-        for mos in mos_query:
-            data.append({
-                'id': mos.id,
-                'code': mos.code,
-                'title': mos.title,
-                'category': mos.category,
-                'description': mos.description,
-                'ait_weeks': mos.ait_weeks,
-                'physical_demand_rating': mos.physical_demand_rating
-            })
+                # Option 1: Direct MOS field
+                if hasattr(slot.role, 'mos') and slot.role.mos:
+                    role_mos = slot.role.mos
+                # Option 2: Required MOS field
+                elif hasattr(slot.role, 'required_mos') and slot.role.required_mos:
+                    role_mos = slot.role.required_mos
+                # Option 3: Many-to-many relationship (uncomment if needed)
+                # elif hasattr(slot.role, 'mos_set'):
+                #     for mos in slot.role.mos_set.all():
+                #         # Process each MOS...
+
+                if role_mos:
+                    mos_id = str(role_mos.id)
+                    if mos_id not in mos_slots:
+                        mos_slots[mos_id] = {
+                            'id': role_mos.id,
+                            'code': role_mos.code,
+                            'title': role_mos.title,
+                            'category': getattr(role_mos, 'category', ''),
+                            'description': getattr(role_mos, 'description', ''),
+                            'ait_weeks': getattr(role_mos, 'ait_weeks', 0),
+                            'physical_demand_rating': getattr(role_mos, 'physical_demand_rating', ''),
+                            'available_slots': 0,
+                            'roles': []
+                        }
+
+                    mos_slots[mos_id]['available_slots'] += slot.available_slots
+
+                    # Add role info
+                    role_info = f"{slot.role.name} ({slot.available_slots} slots)"
+                    if role_info not in mos_slots[mos_id]['roles']:
+                        mos_slots[mos_id]['roles'].append(role_info)
+
+        # Convert to list and sort by available slots (most available first)
+        data = list(mos_slots.values())
+        data.sort(key=lambda x: x['available_slots'], reverse=True)
+
+        # If no MOS found with slots but we have a branch, show all entry-level MOS
+        # This is a fallback if the Role-MOS relationship isn't set up
+        if not data and branch_id:
+            try:
+                all_mos = MOS.objects.filter(
+                    branch_id=branch_id,
+                    is_active=True,
+                    is_entry_level=True
+                )
+
+                # For warrant track, filter to aviation MOS
+                if career_track == 'warrant':
+                    all_mos = all_mos.filter(category='aviation')
+
+                data = [{
+                    'id': mos.id,
+                    'code': mos.code,
+                    'title': mos.title,
+                    'category': getattr(mos, 'category', ''),
+                    'description': getattr(mos, 'description', ''),
+                    'ait_weeks': getattr(mos, 'ait_weeks', 0),
+                    'physical_demand_rating': getattr(mos, 'physical_demand_rating', ''),
+                    'available_slots': 1,  # Show as available but limited
+                    'roles': ['Position availability varies by unit']
+                } for mos in all_mos]
+
+                # Log that we're using the fallback
+                print(f"Using MOS fallback for branch {branch_id}, found {len(data)} MOS options")
+            except Exception as e:
+                print(f"Error in MOS fallback: {e}")
 
         return Response(data)
 
