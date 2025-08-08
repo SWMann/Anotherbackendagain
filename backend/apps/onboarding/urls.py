@@ -13,12 +13,15 @@ urlpatterns = [
     path('applications/current/', ApplicationViewSet.as_view({'get': 'current'}), name='current-application'),
     path('applications/check-status/', ApplicationViewSet.as_view({'get': 'check_status'}),
          name='check-application-status'),
+    path('applications/status/<str:discord_id>/', ApplicationViewSet.as_view({'get': 'check_status_by_discord'}),
+         name='check-application-status-discord'),
+    path('applications/my-drafts/', ApplicationViewSet.as_view({'get': 'my_drafts'}), name='my-drafts'),
     path('applications/get-units/', ApplicationViewSet.as_view({'get': 'get_units'}), name='get-units'),
-    path('applications/get-mos-options/', ApplicationViewSet.as_view({'get': 'get_mos_options'}),
-         name='get-mos-options'),
+    path('applications/get-recruitment-slots/', ApplicationViewSet.as_view({'get': 'get_recruitment_slots'}),
+         name='get-recruitment-slots'),
 
     # Application actions
-    path('applications/<uuid:pk>/save-progress/', ApplicationViewSet.as_view({'post': 'save_progress'}),
+    path('applications/<uuid:pk>/save-progress/', ApplicationViewSet.as_view({'post': 'save_progress', 'patch': 'save_progress'}),
          name='save-application-progress'),
     path('applications/<uuid:pk>/accept-waiver/', ApplicationViewSet.as_view({'post': 'accept_waiver'}),
          name='accept-waiver'),

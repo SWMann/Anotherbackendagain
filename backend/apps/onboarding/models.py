@@ -55,7 +55,7 @@ class Application(BaseModel):
         help_text="Auto-generated application number"
     )
 
-    # User information (Step 7: Basic Information)
+    # User information (Step 2: Basic Information)
     user = models.ForeignKey(
         'users.User',
         on_delete=models.CASCADE,
@@ -75,7 +75,7 @@ class Application(BaseModel):
     timezone = models.CharField(max_length=50)
     country = models.CharField(max_length=100)
 
-    # Military structure selection (Steps 8-11)
+    # Military structure selection (Steps 3-5)
     branch = models.ForeignKey(
         'units.Branch',
         on_delete=models.SET_NULL,
@@ -101,7 +101,7 @@ class Application(BaseModel):
         related_name='secondary_applications'
     )
 
-    # Career track selection (Step 11)
+    # Career track selection (Step 6)
     career_track = models.CharField(
         max_length=20,
         choices=[
@@ -111,32 +111,34 @@ class Application(BaseModel):
         ]
     )
 
-    # MOS selection (Step 12)
-    primary_mos = models.ForeignKey(
-        'units.MOS',
+    # RecruitmentSlot selection (Step 7) - CHANGED FROM MOS
+    selected_recruitment_slot = models.ForeignKey(
+        'units.RecruitmentSlot',
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name='primary_applications_v2'
+        related_name='applications',
+        help_text="The recruitment slot/position applied for"
     )
 
-    alternate_mos_1 = models.ForeignKey(
-        'units.MOS',
+    # Alternative recruitment slots (optional)
+    alternate_recruitment_slot_1 = models.ForeignKey(
+        'units.RecruitmentSlot',
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
         related_name='alternate1_applications'
     )
 
-    alternate_mos_2 = models.ForeignKey(
-        'units.MOS',
+    alternate_recruitment_slot_2 = models.ForeignKey(
+        'units.RecruitmentSlot',
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
         related_name='alternate2_applications'
     )
 
-    # Experience and motivation (Step 13)
+    # Experience and motivation (Step 8)
     previous_experience = models.TextField(
         help_text="Previous gaming/simulation experience"
     )
@@ -144,7 +146,7 @@ class Application(BaseModel):
         help_text="Why do you want to join this unit?"
     )
 
-    # Role-specific information (Step 14)
+    # Role-specific information (Step 9)
     role_specific_answers = models.JSONField(
         default=dict,
         blank=True,
@@ -163,6 +165,10 @@ class Application(BaseModel):
     )
     can_attend_mandatory_events = models.BooleanField(default=True)
     availability_notes = models.TextField(blank=True, null=True)
+
+    # Additional role-specific fields
+    leadership_experience = models.TextField(blank=True, null=True)
+    technical_experience = models.TextField(blank=True, null=True)
 
     # Referral
     referrer = models.ForeignKey(
@@ -239,6 +245,20 @@ class Application(BaseModel):
     def __str__(self):
         return f"{self.application_number} - {self.discord_username}"
 
+    @property
+    def selected_role(self):
+        """Get the role from the selected recruitment slot"""
+        if self.selected_recruitment_slot:
+            return self.selected_recruitment_slot.role
+        return None
+
+    @property
+    def selected_position_unit(self):
+        """Get the unit from the selected recruitment slot"""
+        if self.selected_recruitment_slot:
+            return self.selected_recruitment_slot.unit
+        return None
+
 
 class ApplicationWaiver(BaseModel):
     """Track waiver/acknowledgment acceptance for each application"""
@@ -279,13 +299,13 @@ class ApplicationProgress(BaseModel):
     primary_unit_selected = models.BooleanField(default=False)
     secondary_unit_selected = models.BooleanField(default=False)
     track_selected = models.BooleanField(default=False)
-    mos_selected = models.BooleanField(default=False)
+    position_selected = models.BooleanField(default=False)  # Changed from mos_selected
     experience_completed = models.BooleanField(default=False)
     role_specific_completed = models.BooleanField(default=False)
     waivers_completed = models.BooleanField(default=False)
 
     # Current step tracking
-    current_step = models.IntegerField(default=7)  # Start at basic info
+    current_step = models.IntegerField(default=2)  # Start at basic info
     last_saved_at = models.DateTimeField(auto_now=True)
 
     # Completion percentage
@@ -299,7 +319,7 @@ class ApplicationProgress(BaseModel):
             self.primary_unit_selected,
             self.secondary_unit_selected,
             self.track_selected,
-            self.mos_selected,
+            self.position_selected,
             self.experience_completed,
             self.role_specific_completed,
             self.waivers_completed

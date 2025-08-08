@@ -7,8 +7,8 @@ from .models import (
     ApplicationProgress, ApplicationComment, ApplicationInterview,
     UserOnboardingProgress, MentorAssignment, ApplicationStatus
 )
-from apps.units.models import Branch, Unit, MOS
-from apps.units.serializers import BranchSerializer, UnitListSerializer
+from apps.units.models import Branch, Unit, RecruitmentSlot, Role
+from apps.units.serializers import BranchSerializer, UnitListSerializer, RoleSerializer
 
 User = get_user_model()
 
@@ -46,7 +46,7 @@ class ApplicationProgressSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'application', 'basic_info_completed', 'branch_selected',
             'primary_unit_selected', 'secondary_unit_selected', 'track_selected',
-            'mos_selected', 'experience_completed', 'role_specific_completed',
+            'position_selected', 'experience_completed', 'role_specific_completed',
             'waivers_completed', 'current_step', 'last_saved_at',
             'completion_percentage', 'next_step'
         ]
@@ -55,15 +55,15 @@ class ApplicationProgressSerializer(serializers.ModelSerializer):
     def get_next_step(self, obj):
         """Determine the next incomplete step"""
         steps = [
-            (7, 'basic_info', obj.basic_info_completed),
-            (8, 'branch', obj.branch_selected),
-            (9, 'primary_unit', obj.primary_unit_selected),
-            (10, 'secondary_unit', obj.secondary_unit_selected),
-            (11, 'track', obj.track_selected),
-            (12, 'mos', obj.mos_selected),
-            (13, 'experience', obj.experience_completed),
-            (14, 'role_specific', obj.role_specific_completed),
-            (15, 'waivers', obj.waivers_completed),
+            (2, 'basic_info', obj.basic_info_completed),
+            (3, 'branch', obj.branch_selected),
+            (4, 'primary_unit', obj.primary_unit_selected),
+            (5, 'secondary_unit', obj.secondary_unit_selected),
+            (6, 'track', obj.track_selected),
+            (7, 'position', obj.position_selected),
+            (8, 'experience', obj.experience_completed),
+            (9, 'role_specific', obj.role_specific_completed),
+            (10, 'waivers', obj.waivers_completed),
         ]
 
         for step_num, step_name, completed in steps:
@@ -75,7 +75,7 @@ class ApplicationProgressSerializer(serializers.ModelSerializer):
                 }
 
         return {
-            'step': 16,
+            'step': 11,
             'name': 'submit',
             'completed': True
         }
@@ -114,10 +114,26 @@ class ApplicationInterviewSerializer(serializers.ModelSerializer):
         ]
 
 
+class RecruitmentSlotSerializer(serializers.ModelSerializer):
+    """Serializer for recruitment slots"""
+    role_details = RoleSerializer(source='role', read_only=True)
+    unit_name = serializers.ReadOnlyField(source='unit.name')
+    unit_abbreviation = serializers.ReadOnlyField(source='unit.abbreviation')
+
+    class Meta:
+        model = RecruitmentSlot
+        fields = [
+            'id', 'unit', 'unit_name', 'unit_abbreviation', 'role', 'role_details',
+            'career_track', 'total_slots', 'filled_slots', 'reserved_slots',
+            'available_slots', 'is_active', 'notes'
+        ]
+
+
 class ApplicationListSerializer(serializers.ModelSerializer):
     """List view serializer for applications"""
     branch_name = serializers.ReadOnlyField(source='branch.name', default=None)
     primary_unit_name = serializers.ReadOnlyField(source='primary_unit.name', default=None)
+    selected_role_name = serializers.ReadOnlyField(source='selected_role.name', default=None)
     status_display = serializers.CharField(source='get_status_display', read_only=True)
 
     class Meta:
@@ -125,8 +141,8 @@ class ApplicationListSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'application_number', 'discord_username', 'first_name',
             'last_name', 'branch', 'branch_name', 'primary_unit',
-            'primary_unit_name', 'career_track', 'status', 'status_display',
-            'submitted_at', 'created_at'
+            'primary_unit_name', 'career_track', 'selected_role_name',
+            'status', 'status_display', 'submitted_at', 'created_at'
         ]
 
 
@@ -135,7 +151,7 @@ class ApplicationDetailSerializer(serializers.ModelSerializer):
     branch_details = BranchSerializer(source='branch', read_only=True)
     primary_unit_details = serializers.SerializerMethodField()
     secondary_unit_details = serializers.SerializerMethodField()
-    primary_mos_details = serializers.SerializerMethodField()
+    selected_recruitment_slot_details = RecruitmentSlotSerializer(source='selected_recruitment_slot', read_only=True)
     waivers = ApplicationWaiverSerializer(many=True, read_only=True)
     progress = ApplicationProgressSerializer(read_only=True)
     comments = serializers.SerializerMethodField()
@@ -174,16 +190,6 @@ class ApplicationDetailSerializer(serializers.ModelSerializer):
             }
         return None
 
-    def get_primary_mos_details(self, obj):
-        if obj.primary_mos:
-            return {
-                'id': obj.primary_mos.id,
-                'code': obj.primary_mos.code,
-                'title': obj.primary_mos.title,
-                'category': obj.primary_mos.category
-            }
-        return None
-
     def get_comments(self, obj):
         # Filter comments based on user permissions
         request = self.context.get('request')
@@ -203,11 +209,13 @@ class ApplicationCreateSerializer(serializers.ModelSerializer):
             'discord_username', 'discord_discriminator', 'email',
             'first_name', 'last_name', 'date_of_birth', 'timezone', 'country',
             'branch', 'primary_unit', 'secondary_unit', 'career_track',
-            'primary_mos', 'alternate_mos_1', 'alternate_mos_2',
-            'previous_experience', 'reason_for_joining', 'role_specific_answers',
+            'selected_recruitment_slot', 'alternate_recruitment_slot_1',
+            'alternate_recruitment_slot_2', 'previous_experience',
+            'reason_for_joining', 'role_specific_answers',
             'has_flight_experience', 'flight_hours', 'preferred_aircraft',
             'weekly_availability_hours', 'can_attend_mandatory_events',
-            'availability_notes', 'referrer', 'referral_source'
+            'availability_notes', 'leadership_experience', 'technical_experience',
+            'referrer', 'referral_source', 'current_step'
         ]
 
     def create(self, validated_data):
@@ -225,6 +233,13 @@ class ApplicationCreateSerializer(serializers.ModelSerializer):
         return application
 
     def update(self, instance, validated_data):
+        # Update current_step if provided
+        if 'current_step' in validated_data:
+            current_step = validated_data.pop('current_step')
+            if hasattr(instance, 'progress'):
+                instance.progress.current_step = current_step
+                instance.progress.save()
+
         # Update the application
         application = super().update(instance, validated_data)
 
@@ -249,8 +264,8 @@ class ApplicationCreateSerializer(serializers.ModelSerializer):
             if application.career_track:
                 progress.track_selected = True
 
-            if application.primary_mos:
-                progress.mos_selected = True
+            if application.selected_recruitment_slot:
+                progress.position_selected = True
 
             if application.previous_experience and application.reason_for_joining:
                 progress.experience_completed = True
@@ -258,7 +273,9 @@ class ApplicationCreateSerializer(serializers.ModelSerializer):
             # Check if role-specific questions are answered based on track
             if application.career_track == 'warrant' and application.has_flight_experience is not None:
                 progress.role_specific_completed = True
-            elif application.career_track in ['enlisted', 'officer']:
+            elif application.career_track == 'officer' and application.leadership_experience:
+                progress.role_specific_completed = True
+            elif application.career_track == 'enlisted':
                 progress.role_specific_completed = True
 
             progress.save()

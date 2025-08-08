@@ -4,7 +4,7 @@ from rest_framework.response import Response
 from rest_framework.decorators import action
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
-from django.db import transaction
+from django.db import transaction, models
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters
 import requests
@@ -27,6 +27,8 @@ from .serializers import (
 from apps.units.models import Unit, MOS, Branch
 from apps.users.views import IsAdminOrReadOnly
 from django.contrib.auth import get_user_model
+
+from ..units.models import RecruitmentSlot
 
 User = get_user_model()
 
@@ -88,6 +90,123 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         """
         serializer = ApplicationRecruitmentDataSerializer({})
         return Response(serializer.data)
+
+    @action(detail=False, methods=['get'], permission_classes=[permissions.IsAuthenticated])
+    def get_recruitment_slots(self, request):
+        """
+        Get available recruitment slots based on unit and track
+        Step 7: Position Selection - Shows open recruitment slots
+        Now directly returns RecruitmentSlot objects
+        """
+        branch_id = request.query_params.get('branch_id')
+        career_track = request.query_params.get('career_track')
+        unit_id = request.query_params.get('unit_id')
+
+        if not unit_id:
+            return Response(
+                {'error': 'unit_id is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Get the selected unit
+        try:
+            unit = Unit.objects.get(id=unit_id, is_active=True)
+        except Unit.DoesNotExist:
+            return Response(
+                {'error': 'Unit not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Get all subordinate units including the selected unit
+        all_unit_ids = self._get_all_subordinate_units(unit)
+
+        print(f"Getting recruitment slots for unit {unit.name} and {len(all_unit_ids) - 1} subordinate units")
+
+        # Get open recruitment slots for all units in hierarchy and career track
+        slots = RecruitmentSlot.objects.filter(
+            unit_id__in=all_unit_ids,
+            career_track=career_track,
+            is_active=True
+        ).select_related('role', 'unit').filter(
+            # Only show slots with available positions
+            models.Q(total_slots__gt=models.F('filled_slots') + models.F('reserved_slots'))
+        )
+
+        data = []
+
+        for slot in slots:
+            # Build the slot data
+            slot_data = {
+                'id': slot.id,
+                'unit': {
+                    'id': str(slot.unit.id),
+                    'name': slot.unit.name,
+                    'abbreviation': slot.unit.abbreviation,
+                    'level': slot.unit.unit_level,
+                    'type': slot.unit.unit_type
+                },
+                'role': {
+                    'id': str(slot.role.id),
+                    'name': slot.role.name,
+                    'abbreviation': slot.role.abbreviation or slot.role.name[:4],
+                    'category': slot.role.category,
+                    'description': slot.role.description or '',
+                    'is_command_role': slot.role.is_command_role,
+                    'is_staff_role': slot.role.is_staff_role,
+                    'is_nco_role': slot.role.is_nco_role,
+                    'is_specialist_role': slot.role.is_specialist_role,
+                    'responsibilities': slot.role.responsibilities,
+                    'min_rank': slot.role.min_rank.abbreviation if slot.role.min_rank else None,
+                    'typical_rank': slot.role.typical_rank.abbreviation if slot.role.typical_rank else None,
+                },
+                'career_track': slot.career_track,
+                'available_slots': slot.available_slots,
+                'total_slots': slot.total_slots,
+                'filled_slots': slot.filled_slots,
+                'reserved_slots': slot.reserved_slots,
+                'notes': slot.notes,
+
+                # Display info
+                'display_name': f"{slot.role.name} - {slot.unit.abbreviation}",
+                'display_code': f"{slot.role.abbreviation or 'POS'}-{slot.unit.abbreviation}",
+            }
+
+            data.append(slot_data)
+
+        # Sort by available slots (most available first) and then by role name
+        data.sort(key=lambda x: (-x['available_slots'], x['role']['name']))
+
+        # Add summary information
+        response_data = {
+            'recruitment_slots': data,
+            'summary': {
+                'total_positions': len(data),
+                'total_available_slots': sum(s['available_slots'] for s in data),
+                'units_included': len(all_unit_ids),
+                'primary_unit': {
+                    'id': str(unit.id),
+                    'name': unit.name,
+                    'abbreviation': unit.abbreviation
+                },
+                'breakdown_by_category': {}
+            }
+        }
+
+        # Calculate breakdown by role category
+        category_breakdown = {}
+        for slot_data in data:
+            category = slot_data['role']['category']
+            if category not in category_breakdown:
+                category_breakdown[category] = {
+                    'count': 0,
+                    'available_slots': 0
+                }
+            category_breakdown[category]['count'] += 1
+            category_breakdown[category]['available_slots'] += slot_data['available_slots']
+
+        response_data['summary']['breakdown_by_category'] = category_breakdown
+
+        return Response(response_data)
 
     @action(detail=False, methods=['get'], permission_classes=[permissions.IsAuthenticated])
     def current(self, request):
@@ -313,7 +432,7 @@ class ApplicationViewSet(viewsets.ModelViewSet):
     def submit(self, request, pk=None):
         """
         Final submission of the application
-        Step 16: Submit
+        Step 10: Submit
         """
         application = self.get_object()
 
@@ -346,8 +465,9 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         if not application.career_track:
             errors.append('Career track selection is required')
 
-        if not application.primary_mos:
-            errors.append('Primary MOS selection is required')
+        # Check if a recruitment slot is selected
+        if not application.selected_recruitment_slot:
+            errors.append('Position selection is required')
 
         if not application.previous_experience or not application.reason_for_joining:
             errors.append('Experience and motivation are required')
@@ -376,8 +496,14 @@ class ApplicationViewSet(viewsets.ModelViewSet):
             application.save()
 
             # Update progress
-            application.progress.current_step = 17
+            application.progress.current_step = 11
             application.progress.save()
+
+            # Reserve the slot
+            if application.selected_recruitment_slot:
+                slot = application.selected_recruitment_slot
+                slot.reserved_slots = models.F('reserved_slots') + 1
+                slot.save(update_fields=['reserved_slots'])
 
             # Send Discord notification
             self.send_discord_notification(application)
@@ -464,11 +590,45 @@ class ApplicationViewSet(viewsets.ModelViewSet):
             application.reviewer_notes = request.data.get('notes', '')
             application.save()
 
+            # Update recruitment slot - convert reserved to filled
+            if application.selected_recruitment_slot:
+                slot = application.selected_recruitment_slot
+                slot.filled_slots = models.F('filled_slots') + 1
+                slot.reserved_slots = models.F('reserved_slots') - 1
+                slot.save(update_fields=['filled_slots', 'reserved_slots'])
+
             # Create onboarding progress
             UserOnboardingProgress.objects.get_or_create(
                 user=application.user,
                 defaults={'application': application}
             )
+
+            # Create position assignment if needed
+            if application.selected_recruitment_slot and application.selected_recruitment_slot.role:
+                # Check if there's a vacant position for this role in the unit
+                from apps.units.models import Position, UserPosition
+
+                position = Position.objects.filter(
+                    role=application.selected_recruitment_slot.role,
+                    unit=application.selected_recruitment_slot.unit,
+                    is_vacant=True,
+                    is_active=True
+                ).first()
+
+                if position:
+                    # Create position assignment
+                    UserPosition.objects.create(
+                        user=application.user,
+                        position=position,
+                        assigned_by=request.user,
+                        status='active',
+                        assignment_type='primary',
+                        notes=f"Assigned via application #{application.application_number}"
+                    )
+
+                    # Mark position as filled
+                    position.is_vacant = False
+                    position.save()
 
             # Send approval notification
             self.send_approval_notification(application)
@@ -485,30 +645,133 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         """
         application = self.get_object()
 
-        application.status = ApplicationStatus.REJECTED
-        application.decision_at = timezone.now()
-        application.reviewer = request.user
-        application.reviewer_notes = request.data.get('notes', '')
-        application.save()
+        with transaction.atomic():
+            application.status = ApplicationStatus.REJECTED
+            application.decision_at = timezone.now()
+            application.reviewer = request.user
+            application.reviewer_notes = request.data.get('notes', '')
+            application.save()
 
-        # Send rejection notification
-        self.send_rejection_notification(application)
+            # Release the reserved slot
+            if application.selected_recruitment_slot:
+                slot = application.selected_recruitment_slot
+                slot.reserved_slots = models.F('reserved_slots') - 1
+                slot.save(update_fields=['reserved_slots'])
+
+            # Send rejection notification
+            self.send_rejection_notification(application)
 
         return Response({
             'success': True,
             'message': 'Application rejected'
         })
 
+    @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated])
+    def withdraw(self, request, pk=None):
+        """
+        Allow applicant to withdraw their application
+        """
+        application = self.get_object()
+
+        # Ensure user owns this application
+        if application.user != request.user and not request.user.is_admin:
+            return Response(
+                {'error': 'You do not have permission to withdraw this application'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        # Can only withdraw if not yet decided
+        if application.status in [ApplicationStatus.APPROVED, ApplicationStatus.REJECTED]:
+            return Response(
+                {'error': 'Cannot withdraw an application that has already been decided'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        with transaction.atomic():
+            application.status = ApplicationStatus.WITHDRAWN
+            application.save()
+
+            # Release the reserved slot if application was submitted
+            if application.submitted_at and application.selected_recruitment_slot:
+                slot = application.selected_recruitment_slot
+                slot.reserved_slots = models.F('reserved_slots') - 1
+                slot.save(update_fields=['reserved_slots'])
+
+        return Response({
+            'success': True,
+            'message': 'Application withdrawn successfully'
+        })
+
+    @action(detail=False, methods=['get'], permission_classes=[permissions.IsAuthenticated])
+    def my_drafts(self, request):
+        """
+        Get current user's draft applications
+        """
+        applications = Application.objects.filter(
+            user=request.user,
+            status=ApplicationStatus.DRAFT
+        ).select_related(
+            'branch', 'primary_unit', 'secondary_unit',
+            'selected_recruitment_slot', 'progress'
+        ).order_by('-created_at')
+
+        serializer = ApplicationDetailSerializer(applications, many=True, context={'request': request})
+        return Response(serializer.data)
+
+    @action(detail=False, methods=['get'], url_path='status/(?P<discord_id>[^/.]+)',
+            permission_classes=[permissions.AllowAny])
+    def check_status_by_discord(self, request, discord_id=None):
+        """
+        Check application status by Discord ID
+        Public endpoint for checking application status
+        """
+        if not discord_id:
+            return Response(
+                {'error': 'Discord ID is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Get the most recent non-draft application for this Discord ID
+        application = Application.objects.filter(
+            discord_id=discord_id
+        ).exclude(
+            status=ApplicationStatus.DRAFT
+        ).order_by('-submitted_at').first()
+
+        if not application:
+            return Response({
+                'status': 'not_found',
+                'message': 'No submitted applications found for this Discord ID'
+            })
+
+        # Return basic status information
+        return Response({
+            'status': application.status,
+            'application_id': application.id,
+            'application_number': application.application_number,
+            'submitted_at': application.submitted_at,
+            'current_status': application.get_status_display(),
+            'has_interview': application.interview_scheduled_at is not None,
+            'interview_date': application.interview_scheduled_at
+        })
+
     def send_discord_notification(self, application):
         """
         Send Discord webhook notification for new application
-        Step 18: Discord notification
         """
         webhook_url = os.environ.get('DISCORD_APPLICATION_WEBHOOK')
         if not webhook_url:
             return
 
         try:
+            # Get role information from recruitment slot
+            role_info = "N/A"
+            unit_info = "N/A"
+            if application.selected_recruitment_slot:
+                slot = application.selected_recruitment_slot
+                role_info = f"{slot.role.name} ({slot.role.abbreviation})"
+                unit_info = f"{slot.unit.name} ({slot.unit.abbreviation})"
+
             embed = {
                 "title": f"New Application Received",
                 "description": f"Application #{application.application_number}",
@@ -535,8 +798,13 @@ class ApplicationViewSet(viewsets.ModelViewSet):
                         "inline": True
                     },
                     {
-                        "name": "MOS",
-                        "value": f"{application.primary_mos.code} - {application.primary_mos.title}" if application.primary_mos else "N/A",
+                        "name": "Applied Position",
+                        "value": role_info,
+                        "inline": True
+                    },
+                    {
+                        "name": "Position Unit",
+                        "value": unit_info,
                         "inline": True
                     }
                 ],
@@ -573,6 +841,7 @@ class ApplicationViewSet(viewsets.ModelViewSet):
 
         except Exception as e:
             print(f"Failed to send Discord notification: {e}")
+
 
     def send_interview_notification(self, application, interview):
         """Send Discord notification for interview scheduling"""
