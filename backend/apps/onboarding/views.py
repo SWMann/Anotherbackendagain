@@ -101,8 +101,8 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         if self.action in ['create', 'recruitment_data']:
             return [permissions.AllowAny()]
         elif self.action in ['retrieve', 'update', 'partial_update', 'submit', 'check_status',
-                             'current', 'get_units', 'get_mos_options', 'save_progress',
-                             'accept_waiver']:
+                             'current', 'get_units', 'get_mos_options', 'get_recruitment_slots',  # ADD THIS
+                             'save_progress', 'accept_waiver']:
             return [permissions.IsAuthenticated()]
         return [permissions.IsAdminUser()]
 
