@@ -14,10 +14,7 @@ class UserSerializer(serializers.ModelSerializer):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        # Check if MOS fields exist on the User model
-        if hasattr(User, 'primary_mos'):
-            self.fields['primary_mos_details'] = serializers.SerializerMethodField()
-            self.fields['secondary_mos_details'] = serializers.SerializerMethodField()
+
 
     class Meta:
         model = User
@@ -35,42 +32,8 @@ class UserSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['id', 'discord_id', 'join_date', 'is_active', 'is_staff', 'is_admin']
 
-    def get_primary_mos_details(self, obj):
-        if hasattr(obj, 'primary_mos') and obj.primary_mos:
-            return {
-                'id': obj.primary_mos.id,
-                'code': obj.primary_mos.code,
-                'title': obj.primary_mos.title,
-                'category': obj.primary_mos.category
-            }
-        return None
 
-    def get_secondary_mos_details(self, obj):
-        if hasattr(obj, 'secondary_mos'):
-            return [
-                {
-                    'id': mos.id,
-                    'code': mos.code,
-                    'title': mos.title,
-                    'category': mos.category
-                }
-                for mos in obj.secondary_mos.all()
-            ]
-        return []
 
-    def to_representation(self, instance):
-        data = super().to_representation(instance)
-
-        # Add MOS fields if they exist
-        if hasattr(instance, 'primary_mos'):
-            data['primary_mos'] = instance.primary_mos.id if instance.primary_mos else None
-            data['mos_skill_level'] = getattr(instance, 'mos_skill_level', None)
-            data['mos_qualified_date'] = getattr(instance, 'mos_qualified_date', None)
-
-        if hasattr(instance, 'secondary_mos'):
-            data['secondary_mos'] = [mos.id for mos in instance.secondary_mos.all()]
-
-        return data
 
 
 class ProfileSerializer(serializers.ModelSerializer):
@@ -183,8 +146,6 @@ class UserProfileDetailSerializer(serializers.ModelSerializer):
     primary_unit = serializers.SerializerMethodField()
     branch = serializers.SerializerMethodField()
     mentor = serializers.SerializerMethodField()
-    primary_mos = serializers.SerializerMethodField()
-    secondary_mos = serializers.SerializerMethodField()
 
     class Meta:
         model = User
@@ -197,8 +158,8 @@ class UserProfileDetailSerializer(serializers.ModelSerializer):
             'recruit_status', 'training_completion_date', 'application_date',
             'bit_completion_date', 'branch_application_date',
             'branch_induction_date', 'unit_assignment_date',
-            'officer_candidate', 'warrant_officer_candidate', 'mentor',
-            'primary_mos', 'secondary_mos'
+            'officer_candidate', 'warrant_officer_candidate', 'mentor'
+
         ]
 
     def get_current_rank(self, obj):
@@ -286,28 +247,5 @@ class UserProfileDetailSerializer(serializers.ModelSerializer):
             }
         return None
 
-    def get_primary_mos(self, obj):
-        if hasattr(obj, 'primary_mos') and obj.primary_mos:
-            return {
-                'id': obj.primary_mos.id,
-                'code': obj.primary_mos.code,
-                'title': obj.primary_mos.title,
-                'category': obj.primary_mos.category,
-                'branch': obj.primary_mos.branch.abbreviation,
-                'skill_level': getattr(obj, 'mos_skill_level', 10)
-            }
-        return None
 
-    def get_secondary_mos(self, obj):
-        if hasattr(obj, 'secondary_mos'):
-            return [
-                {
-                    'id': mos.id,
-                    'code': mos.code,
-                    'title': mos.title,
-                    'category': mos.category,
-                    'branch': mos.branch.abbreviation
-                }
-                for mos in obj.secondary_mos.all()
-            ]
-        return []
+
