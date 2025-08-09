@@ -206,6 +206,7 @@ class ApplicationCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Application
         fields = [
+            'id',
             'discord_username', 'discord_discriminator', 'email',
             'first_name', 'last_name', 'date_of_birth', 'timezone', 'country',
             'branch', 'primary_unit', 'secondary_unit', 'career_track',
