@@ -156,7 +156,6 @@ class Application(BaseModel):
     # Aviation specific
     has_flight_experience = models.BooleanField(default=False)
     flight_hours = models.IntegerField(default=0)
-    preferred_aircraft = models.CharField(max_length=100, blank=True, null=True)
 
     # Availability
     weekly_availability_hours = models.IntegerField(
