@@ -215,7 +215,8 @@ class ApplicationCreateSerializer(serializers.ModelSerializer):
             'has_flight_experience', 'flight_hours', 'preferred_aircraft',
             'weekly_availability_hours', 'can_attend_mandatory_events',
             'availability_notes', 'leadership_experience', 'technical_experience',
-            'referrer', 'referral_source', 'current_step'
+            'referrer', 'referral_source'
+            # REMOVED 'current_step' from here
         ]
 
     def create(self, validated_data):
@@ -233,9 +234,10 @@ class ApplicationCreateSerializer(serializers.ModelSerializer):
         return application
 
     def update(self, instance, validated_data):
-        # Update current_step if provided
-        if 'current_step' in validated_data:
-            current_step = validated_data.pop('current_step')
+        # Handle current_step if it's passed in the request data (but not in validated_data)
+        request = self.context.get('request')
+        if request and 'current_step' in request.data:
+            current_step = request.data.get('current_step')
             if hasattr(instance, 'progress'):
                 instance.progress.current_step = current_step
                 instance.progress.save()
