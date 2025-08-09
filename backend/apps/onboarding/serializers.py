@@ -212,7 +212,7 @@ class ApplicationCreateSerializer(serializers.ModelSerializer):
             'selected_recruitment_slot', 'alternate_recruitment_slot_1',
             'alternate_recruitment_slot_2', 'previous_experience',
             'reason_for_joining', 'role_specific_answers',
-            'has_flight_experience', 'flight_hours', 'preferred_aircraft',
+            'has_flight_experience', 'flight_hours',
             'weekly_availability_hours', 'can_attend_mandatory_events',
             'availability_notes', 'leadership_experience', 'technical_experience',
             'referrer', 'referral_source'
