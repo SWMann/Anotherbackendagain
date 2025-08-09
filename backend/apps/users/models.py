@@ -63,8 +63,7 @@ class User(AbstractBaseUser, PermissionsMixin, BaseModel):
     timezone = models.CharField(max_length=50, blank=True, null=True)
     discord_notifications = models.BooleanField(default=True)
     email_notifications = models.BooleanField(default=True)
-    commission_stage = models.ForeignKey('onboarding.CommissionStage', on_delete=models.SET_NULL, null=True, blank=True,
-                                         related_name='user_commissioning')
+
     onboarding_status = models.CharField(
         max_length=50,
         choices=[

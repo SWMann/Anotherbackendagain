@@ -26,7 +26,8 @@ class UserSerializer(serializers.ModelSerializer):
             'join_date', 'is_active', 'is_staff', 'is_admin', 'service_number',
             'current_rank', 'primary_unit', 'branch', 'background_image_url',
             'timezone', 'discord_notifications', 'email_notifications',
-            'commission_stage', 'onboarding_status', 'recruit_status',
+
+             'onboarding_status', 'recruit_status',
             'training_completion_date', 'application_date',
             'bit_completion_date', 'branch_application_date',
             'branch_induction_date', 'unit_assignment_date',
@@ -78,10 +79,10 @@ class ProfileSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'username', 'avatar_url', 'bio', 'service_number',
             'current_rank', 'primary_unit', 'branch', 'background_image_url',
-            'timezone', 'commission_stage', 'recruit_status',
+            'timezone',  'recruit_status',
             'officer_candidate', 'warrant_officer_candidate'
         ]
-        read_only_fields = ['id', 'service_number', 'current_rank', 'primary_unit', 'branch', 'commission_stage',
+        read_only_fields = ['id', 'service_number', 'current_rank', 'primary_unit', 'branch',
                             'recruit_status']
 
 
@@ -96,7 +97,7 @@ class UserSensitiveFieldsSerializer(serializers.ModelSerializer):
             'current_rank',
             'primary_unit',
             'branch',
-            'commission_stage',
+
             'recruit_status',
             'officer_candidate',
             'warrant_officer_candidate'
@@ -127,7 +128,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'username', 'avatar_url', 'bio', 'join_date',
             'service_number', 'rank', 'unit', 'branch',
-            'background_image_url', 'commission_stage', 'recruit_status',
+            'background_image_url', 'recruit_status',
         ]
 
     def get_rank(self, obj):
@@ -181,7 +182,6 @@ class UserProfileDetailSerializer(serializers.ModelSerializer):
     current_rank = serializers.SerializerMethodField()
     primary_unit = serializers.SerializerMethodField()
     branch = serializers.SerializerMethodField()
-    commission_stage = serializers.SerializerMethodField()
     mentor = serializers.SerializerMethodField()
     primary_mos = serializers.SerializerMethodField()
     secondary_mos = serializers.SerializerMethodField()
@@ -193,7 +193,7 @@ class UserProfileDetailSerializer(serializers.ModelSerializer):
             'join_date', 'last_login', 'is_active', 'is_staff', 'is_admin',
             'service_number', 'current_rank', 'primary_unit', 'branch',
             'background_image_url', 'timezone', 'discord_notifications',
-            'email_notifications', 'commission_stage', 'onboarding_status',
+            'email_notifications',  'onboarding_status',
             'recruit_status', 'training_completion_date', 'application_date',
             'bit_completion_date', 'branch_application_date',
             'branch_induction_date', 'unit_assignment_date',
@@ -262,18 +262,8 @@ class UserProfileDetailSerializer(serializers.ModelSerializer):
             }
         return None
 
-    def get_commission_stage(self, obj):
-        if obj.commission_stage:
-            return {
-                'id': obj.commission_stage.id,
-                'name': obj.commission_stage.name,
-                'description': obj.commission_stage.description,
-                'badge_image_url': obj.commission_stage.badge_image_url,
-                'requirements': obj.commission_stage.requirements,
-                'benefits': obj.commission_stage.benefits,
-                'order_index': obj.commission_stage.order_index
-            }
-        return None
+
+
 
     def get_mentor(self, obj):
         # Get active mentor assignment
