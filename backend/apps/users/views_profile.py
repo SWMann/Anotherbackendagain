@@ -47,10 +47,6 @@ class UserProfileDetailView(APIView):
             'current_rank',
             'primary_unit',
             'branch',
-            'commission_stage'
-        ).prefetch_related(
-            'primary_mos',
-            'secondary_mos'
         ).get(pk=user.pk)
 
         # Get user data with expanded relations - pass request context
