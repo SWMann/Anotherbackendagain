@@ -8,7 +8,7 @@ from .models import (
     UserOnboardingProgress, MentorAssignment, ApplicationStatus
 )
 from apps.units.models import Branch, Unit, RecruitmentSlot, Role
-from apps.units.serializers import BranchSerializer, UnitListSerializer, RoleSerializer
+from apps.units.serializers import BranchSerializer, UnitListSerializer, RoleDetailSerializer
 
 User = get_user_model()
 
@@ -116,7 +116,7 @@ class ApplicationInterviewSerializer(serializers.ModelSerializer):
 
 class RecruitmentSlotSerializer(serializers.ModelSerializer):
     """Serializer for recruitment slots"""
-    role_details = RoleSerializer(source='role', read_only=True)
+    role_details = RoleDetailSerializer(source='role', read_only=True)
     unit_name = serializers.ReadOnlyField(source='unit.name')
     unit_abbreviation = serializers.ReadOnlyField(source='unit.abbreviation')
 
